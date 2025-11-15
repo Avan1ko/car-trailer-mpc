@@ -138,7 +138,7 @@ if __name__ == "__main__":
         
         # Add plot of hybrid A* (reference trajectory)
         # Get the states from the json
-        with open('python-files\initialize.json', 'r') as f:
+        with open('initialize.json', 'r') as f:
             data = json.load(f)
 
         

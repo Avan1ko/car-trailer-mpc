@@ -3,7 +3,7 @@ import numpy as np
 
 def get_initial_goal_states():
     # Load data from the JSON file
-    with open('python-files\initialize.json', 'r') as f:
+    with open('initialize.json', 'r') as f:
         data = json.load(f)
 
     # Now we can access the data from the file. For example:

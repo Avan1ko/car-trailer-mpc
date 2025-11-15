@@ -4,7 +4,7 @@ import matplotlib.patches as patches
 
 def get_obstacles():
     # Load JSON data from the file
-    with open('python-files\obstacles.json', 'r') as f:
+    with open('obstacles.json', 'r') as f:
         data = json.load(f)
 
     # Initialize obstacle_list for storing data

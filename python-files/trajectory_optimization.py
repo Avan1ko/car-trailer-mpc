@@ -226,7 +226,7 @@ class TrajectoryOptimization(TrajectoryPlanning):
         num_obstacle = len(self.obstacle_list)
 
         # Get the states from the json
-        with open('python-files\initialize.json', 'r') as f:
+        with open('initialize.json', 'r') as f:
             data = json.load(f)
 
         # Now we can access the data from the file. For example:
