@@ -1,4 +1,5 @@
-# Self Parking Truck Trailer
+# MEAM 5170 Final Project: Avaniko Asokkumar, Vanessa Gong, Runing Guan
+Simulation environment and baseline repo forked from: https://github.com/MCastelyns/BEP-Motion-planning-for-Truck-Trailers
 
 ## Implementation of an Anti-Jackknife Controller to Enhance Motion Planning for Truck-Trailers.
 
