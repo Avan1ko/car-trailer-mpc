@@ -77,6 +77,11 @@ To generate the collision constraints in a way that can be used by the solver (I
 
 ### RRT reference planner
 
+changes made:
+1. python-files/plot_rrt.py: plots the saved RRT path with start/end markers and the warehouse obstacles so you can visualize without inline snippets (set MPLCONFIGDIR if macOS complains).
+2. python-files/rrt_planner.py: rewritten to a planar RRT with CLI knobs (--step-size, --max-iters, --goal-rate, --clearance, etc.) that outputs rrt_path.json.
+3. README.md: RRT section now documents the planner workflow and flags.
+
 The default Unity pipeline exports Hybrid A* paths through `initialize.json`. To compare against a sampling-based method we added a planar RRT implementation in `python-files/rrt_planner.py`. The script reads the same `initialize.json`/`obstacles.json` files to get start, goal, and obstacle rectangles, runs a geometric RRT with truck-width clearance, and writes an `rrt_path.json` that matches the Hybrid A* schema (positions plus headings; hitch angles are set to zero and can be refined later).
 
 Run it after JSON files exist (Unity-generated or hand-edited):
