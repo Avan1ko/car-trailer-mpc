@@ -75,6 +75,28 @@ No collision constraints are considered for the MPC, as in reality the MPC shoul
 
 To generate the collision constraints in a way that can be used by the solver (IPOPT) we have used the method described in [Optimization-Based Collision Avoidance](https://arxiv.org/pdf/1711.03449.pdf). This method is known as optimization based collision avoidance (OBCA)
 
+### RRT reference planner
+
+The default Unity pipeline exports Hybrid A* paths through `initialize.json`. To compare against a sampling-based method we added a planar RRT implementation in `python-files/rrt_planner.py`. The script reads the same `initialize.json`/`obstacles.json` files to get start, goal, and obstacle rectangles, runs a geometric RRT with truck-width clearance, and writes an `rrt_path.json` that matches the Hybrid A* schema (positions plus headings; hitch angles are set to zero and can be refined later).
+
+Run it after JSON files exist (Unity-generated or hand-edited):
+
+```bash
+cd python-files
+python rrt_planner.py --plot
+```
+
+Useful CLI flags:
+
+* `--step-size` – edge length of each RRT expansion (meters)
+* `--max-iters` – iteration limit before giving up
+* `--goal-rate` – probability of sampling the goal to bias the tree
+* `--clearance` – inflation added to obstacle rectangles to model truck width
+* `--output` – path to save the JSON (`rrt_path.json` by default)
+* `--plot` – visualize the sampled path and warehouse obstacles
+
+The resulting JSON can be fed into the trajectory optimizer/MPC (rename it to `initialize.json` if you want to use it as the reference path) or compared directly against the Hybrid A* output.
+
 ## FAQ 
 
 * **What software do I need?** To make this project work you need [Unity](https://unity.com/) together with 
