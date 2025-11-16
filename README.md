@@ -86,10 +86,10 @@ The default Unity pipeline exports Hybrid A* paths through `initialize.json`. To
 
 Run it after JSON files exist (Unity-generated or hand-edited):
 
-```bash
+
 cd python-files
 python rrt_planner.py --plot
-```
+
 
 Useful CLI flags:
 
@@ -101,6 +101,35 @@ Useful CLI flags:
 * `--plot` – visualize the sampled path and warehouse obstacles
 
 The resulting JSON can be fed into the trajectory optimizer/MPC (rename it to `initialize.json` if you want to use it as the reference path) or compared directly against the Hybrid A* output.
+
+### One-shot workflow helper DOES NOT WROK DO NOT USE. USE MANUAL BELOW
+
+If switching between planners is getting repetitive, use this helper script in the repo root:
+
+```
+python python-files/run_rrt_workflow.py --apply --optimize --simulate --restore
+```
+
+This runs the planner with good default parameters, copies the generated `rrt_path.json` into `initialize.json` (backing up the original), optionally launches the trajectory optimizer (`--optimize`) and MPC simulation (`--simulate`), and restores the original Hybrid A* path when finished (`--restore`). Additional flags mirror the planner options (`--step-size`, `--max-iters`, `--goal-rate`, `--clearance`, `--plot`). Set `MPLCONFIGDIR` if macOS complains about Matplotlib.
+
+### Manual RRT workflow
+
+
+```
+cd /Users/runingguan/car-trailer-mpc
+python python-files/rrt_planner.py --max-iters 50000 --step-size 3.5 --goal-rate 0.3 --clearance 0.8
+
+mv initialize.json initialize_hybrid.json
+cp python-files/rrt_path.json initialize.json
+
+cd python-files
+python trajectory_animation.py
+python simulation.py
+
+cd ..
+mv initialize_hybrid.json initialize.json
+```
+
 
 ## FAQ 
 
