@@ -84,7 +84,7 @@ class MPCTrackingControl(TrajectoryPlanning):
                                initial_state)
             )
         end = time.time()
-        print(f"run time: {end-start}")
+        # Solver runtime available if needed via `end-start`, but suppressed by default to keep logs clean.
         vars_opt = sol['x']
         
         # print(f"g_dyn: {self.g_dyn_fun(vars_guess, initial_state)}")

@@ -272,7 +272,6 @@ if __name__ == "__main__":
     
     while time <= T_sim:
         k = math.floor(time/dt)
-        print(f"step: {k}")
         if k + horizon <= N:
             ref_state_traj_[:,:] = ref_state_traj[:,k:k+horizon+1]
             ref_input_traj_[:,:] = ref_input_traj[:,k:k+horizon]

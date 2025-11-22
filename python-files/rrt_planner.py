@@ -196,6 +196,19 @@ def save_to_json(states: Sequence[List[float]], output_path: str) -> None:
         json.dump(data, f, indent=2)
 
 
+def summarize_path(points: Sequence[np.ndarray]) -> None:
+    if len(points) < 2:
+        print("RRT summary: insufficient points.")
+        return
+    total_length = 0.0
+    for i in range(len(points) - 1):
+        total_length += np.linalg.norm(points[i + 1] - points[i])
+    print(
+        f"RRT summary -> nodes: {len(points)}, "
+        f"path length: {total_length:.2f} m"
+    )
+
+
 def plot_path(points: Sequence[np.ndarray], obstacles: Sequence[AxisAlignedRectangle]) -> None:
     plt.figure()
     for obs in obstacles:
@@ -245,6 +258,7 @@ def main() -> None:
         clearance=args.clearance,
     )
     points = planner.plan(start, goal)
+    summarize_path(points)
     states = convert_points_to_states(points)
     output_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), args.output)
     save_to_json(states, output_path)

@@ -318,7 +318,7 @@ class TrajectoryOptimization(TrajectoryPlanning):
                 p = ca.vertcat(initial_state, goal_state)
             )
         end = time.time()
-        print(f"run time: {end-start}")
+        # Runtime available via end-start if debugging is needed.
         vars_opt = sol['x']
         states, inputs, _, _ = self._split_decision_variables(vars_opt)
             

@@ -119,6 +119,9 @@ This runs the planner with good default parameters, copies the generated `rrt_pa
 cd /Users/runingguan/car-trailer-mpc
 python python-files/rrt_planner.py --max-iters 50000 --step-size 3.5 --goal-rate 0.3 --clearance 0.8
 
+# The planner prints a short summary (iterations, node count, path length)
+# and writes python-files/rrt_path.json for downstream steps.
+
 mv initialize.json initialize_hybrid.json
 cp python-files/rrt_path.json initialize.json
 
@@ -129,6 +132,16 @@ python simulation.py
 cd ..
 mv initialize_hybrid.json initialize.json
 ```
+
+### Quick metric comparison
+
+To compare the Hybrid A* reference path with the latest RRT path metrics (nodes + length) in one shot, run:
+
+```
+python python-files/compare_paths.py --step-size 3.5 --max-iters 50000 --goal-rate 0.3 --clearance 0.8
+```
+
+This computes the Hybrid A* metrics from `initialize_hybrid.json`, generates a fresh RRT path (printing its summary), and leaves both files untouched so you can continue with whichever planner you need.
 
 
 ## FAQ 
