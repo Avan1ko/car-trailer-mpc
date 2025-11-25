@@ -23,7 +23,7 @@ driving of the truck trailer, especially going backwards.
 ### The goal of this project
 
 The target for this project is to autonomously park a truck trailer in a warehouse scenario as can be seen in the image 
-below. The truck will need to dinamically find a path between the starting position and the target position. When a path
+below. The truck will need to dynamically find a path between the starting position and the target position. When a path
 is found the truck will need to drive this path without the trailer jackkniffing.
 ![Goal.png](_media%2FGoal.png)
 The following image show a general overview of how this project works. 
