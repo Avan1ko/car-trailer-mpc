@@ -143,6 +143,22 @@ python python-files/compare_paths.py --step-size 3.5 --max-iters 50000 --goal-ra
 
 This computes the Hybrid A* metrics from `initialize_hybrid.json`, generates a fresh RRT path (printing its summary), and leaves both files untouched so you can continue with whichever planner you need.
 
+### Sweep RRT parameters to CSV
+
+To batch compare many RRT settings without overwriting `initialize.json`, run the sweep helper (writes `sweep_metrics.csv` in the repo root):
+
+```
+cd /Users/runingguan/car-trailer-mpc
+MPLCONFIGDIR=.mplconfig python python-files/compare_sweep.py \
+  --step-sizes 2.5 3.0 3.5 \
+  --goal-rates 0.15 0.25 0.35 \
+  --clearances 0.6 0.8 1.0 \
+  --max-iters 30000 50000 \
+  --output sweep_metrics.csv
+```
+
+Flags mirror the planner; use space-separated lists to sweep each parameter. Add `--append` to keep adding rows or `--plot` to show each run. CSV columns: step_size, goal_rate, clearance, max_iters, rrt_nodes, rrt_length_m, hybrid_nodes, hybrid_length_m.
+
 
 ## FAQ 
 
