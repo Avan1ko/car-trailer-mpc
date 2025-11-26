@@ -3,7 +3,7 @@ import casadi as ca
 import numpy as np
 import time
 
-class MPCTrackingControl(TrajectoryPlanning):
+class MPCTrackingControlFuzzy(TrajectoryPlanning):
     def __init__(self, 
                  dynamics, params, 
                  Q, R, 
@@ -14,12 +14,12 @@ class MPCTrackingControl(TrajectoryPlanning):
         self._ref_inputs_sm = ca.SX.sym("reference_inputs", self._num_input, self._horizon)
         self._q_weights_sm = ca.SX.sym("q_weights", self._num_state)
         self._r_weights_sm = ca.SX.sym("r_weights", self._num_input)
+        self._last_solution = None  # warm start between calls
         
         self._build_solver()
     
     def _cost_function(self):
         cost = 0.
-        # Scale Q/R diagonally each solve using fuzzy weights.
         Q_w = ca.diag(self._q_weights_sm) @ self._Q @ ca.diag(self._q_weights_sm)
         R_w = ca.diag(self._r_weights_sm) @ self._R @ ca.diag(self._r_weights_sm)
         for k in range(self._horizon):
@@ -39,15 +39,15 @@ class MPCTrackingControl(TrajectoryPlanning):
         self._lb_vars, self._ub_vars = self._state_input_constraints()        
         cost = self._cost_function()
         solver_opts = {
-            'ipopt': {'max_iter': 5000, 'print_level': 0},
-            # 'ipopt': {'max_iter': 0, 'print_level': 5},
+            'ipopt': {
+                'max_iter': 2000,
+                'print_level': 0,
+                'tol': 1e-3,
+                'acceptable_tol': 1e-2,
+                'acceptable_iter': 5,
+            },
             'print_time': False
         }     
-        # print(self._ref_inputs_sm[:,0])
-        # exit()
-        # print(self._ref_states_sm.reshape((-1, 1)))
-        # print(self._ref_inputs_sm.reshape((-1, 1)))        
-        # exit()  
         nlp_prob = {
             'f': cost,
             'x': self._vars,
@@ -60,13 +60,6 @@ class MPCTrackingControl(TrajectoryPlanning):
         }
         self._solver = ca.nlpsol('solver','ipopt', nlp_prob, solver_opts)
 
-        self.g_dyn_fun = ca.Function("g_dyn", [self._vars, self._init_state_sm], [g_dyn])
-        self.cost_fun = ca.Function(
-            "cost",
-            [self._vars, self._ref_states_sm, self._ref_inputs_sm, self._q_weights_sm, self._r_weights_sm],
-            [cost],
-        )
-        
     def _get_initial_guess(self, reference_states, reference_inputs):
         vars_guess = []
         for k in range(self._horizon):
@@ -76,36 +69,52 @@ class MPCTrackingControl(TrajectoryPlanning):
         vars_guess = ca.vertcat(vars_guess, reference_states[:,-1])
         return vars_guess
 
+    def _shift_solution(self, vars_opt):
+        """Shift previous optimal trajectory forward one step for warm start."""
+        num_state = self._num_state
+        num_input = self._num_input
+        h = self._horizon
+        step = num_state + num_input
+
+        shifted = []
+        for k in range(h - 1):
+            start = (k + 1) * step
+            chunk = vars_opt[start:start + step]
+            shifted = ca.vertcat(shifted, chunk)
+        last_state = vars_opt[-step:-num_input]
+        last_input = vars_opt[-num_input:]
+        shifted = ca.vertcat(shifted, last_state, last_input)
+        shifted = ca.vertcat(shifted, last_state)
+        return shifted
+
     def _compute_fuzzy_weights(self, current_state, reference_states):
         """Lightweight fuzzy rules to scale Q/R based on hitch angle and reversing."""
         psi = float(current_state[3])
         v = float(current_state[5])
         ref_v = float(reference_states[5, 0]) if reference_states.size > 0 else 0.0
 
-        hitch_soft = 0.35  # ~20 degrees before strong scaling
+        hitch_soft = 0.35
         hitch_norm = min(abs(psi) / hitch_soft, 1.0)
         reversing = (ref_v < -0.1) or (v < -0.1)
 
         q_weights = np.ones(self._num_state)
         r_weights = np.ones(self._num_input)
 
-        hitch_gain = 1.0 + 3.0 * hitch_norm
-        steer_gain = 1.0 + 1.5 * hitch_norm
-        steer_rate_gain = 1.0 + 2.0 * hitch_norm
+        hitch_gain = 1.0 + 2.0 * hitch_norm
+        steer_gain = 1.0 + 1.2 * hitch_norm
+        steer_rate_gain = 1.0 + 1.5 * hitch_norm
         if reversing:
-            hitch_gain *= 1.3
-            steer_gain *= 1.2
-            steer_rate_gain *= 1.3
+            hitch_gain *= 1.1
+            steer_gain *= 1.1
+            steer_rate_gain *= 1.2
 
-        # Emphasize hitch, steering angle, and heading alignment; penalize steering rate when risk increases.
         q_weights[2] = max(1.0, steer_gain)       # theta
         q_weights[3] = max(1.0, hitch_gain)       # psi (hitch)
         q_weights[4] = max(1.0, steer_gain)       # phi
         r_weights[1] = max(1.0, steer_rate_gain)  # steering rate input
 
-        # Keep scaling bounded to avoid numerical issues.
-        q_weights = np.clip(q_weights, 1.0, 6.0)
-        r_weights = np.clip(r_weights, 1.0, 6.0)
+        q_weights = np.clip(q_weights, 1.0, 3.5)
+        r_weights = np.clip(r_weights, 1.0, 3.5)
 
         return ca.DM(q_weights), ca.DM(r_weights)
 
@@ -116,9 +125,11 @@ class MPCTrackingControl(TrajectoryPlanning):
         reference_states_flat = reference_states.T.reshape((-1, 1))
         reference_inputs_flat = reference_inputs.T.reshape((-1, 1))
         
-        vars_guess = self._get_initial_guess(reference_states, reference_inputs)
+        if self._last_solution is not None:
+            vars_guess = self._shift_solution(self._last_solution)
+        else:
+            vars_guess = self._get_initial_guess(reference_states, reference_inputs)
         q_weights, r_weights = self._compute_fuzzy_weights(initial_state, reference_states)
-        start = time.time()
         sol = self._solver(
                 x0  = vars_guess, 
                 lbx = self._lb_vars,
@@ -131,10 +142,7 @@ class MPCTrackingControl(TrajectoryPlanning):
                                r_weights,
                                initial_state)
             )
-        end = time.time()
-        # Solver runtime available if needed via `end-start`, but suppressed by default to keep logs clean.
         if not self._solver.stats()['success']:
-            # Fallback to nominal weights if the fuzzy scaling made the solve harder.
             q_fallback = ca.DM.ones(self._num_state)
             r_fallback = ca.DM.ones(self._num_input)
             sol = self._solver(
@@ -149,23 +157,11 @@ class MPCTrackingControl(TrajectoryPlanning):
                              r_fallback,
                              initial_state)
             )
+        if not self._solver.stats()['success']:
+            return None, None
 
         vars_opt = sol['x']
-        
-        # print(f"g_dyn: {self.g_dyn_fun(vars_guess, initial_state)}")
-        
-        # print(vars_guess[:20])
-        # print(reference_inputs_flat)
-        # print(reference_states)
-        # print(reference_inputs)
-        # print(vars_opt[:20])
-        
-        # print(f"g_dyn: {self.g_dyn_fun(vars_opt, initial_state)}")
-        # print(f"cost: {self.cost_fun(vars_opt, reference_states, reference_inputs)}")
-        # exit()
-        
-        if self._solver.stats()['success'] == False:
-            print("Cannot find a solution!") 
+        self._last_solution = vars_opt
         states, inputs = self._split_decision_variables(vars_opt)
         
         return states, inputs

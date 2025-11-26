@@ -159,6 +159,10 @@ MPLCONFIGDIR=.mplconfig python python-files/compare_sweep.py \
 
 Flags mirror the planner; use space-separated lists to sweep each parameter. Add `--append` to keep adding rows or `--plot` to show each run. CSV columns: step_size, goal_rate, clearance, max_iters, rrt_nodes, rrt_length_m, hybrid_nodes, hybrid_length_m.
 
+### Fuzzy MPC notes
+
+The MPC now scales its Q/R weights each solve based on hitch angle and direction (boosting hitch/steering penalties when reversing or the trailer folds). See `README_fuzzy_mpc.md` for the rule set and tuning knobs.
+
 
 ## FAQ 
 
