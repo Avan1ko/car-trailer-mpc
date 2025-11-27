@@ -11,6 +11,7 @@ from get_initial_goal_states import get_initial_goal_states
 import casadi as ca
 import copy
 import os
+from LQR_cost import lqr_distance
 
 # ============================================================================
 # DISTURBANCE CONFIGURATION
@@ -253,5 +254,10 @@ if __name__ == "__main__":
         plt.pause(0.0001)
     
         time += dt
+    
+    #calculate the "distance" of the final state to the desired goal state using LQR
+    score = lqr_distance(state[-6:], ref_state_traj_[:, -1], params, model, Q, R, ref_input_traj_[:, -1])
+    print("LQR distance score: ")
+    print(score)
     
     plt.show()
