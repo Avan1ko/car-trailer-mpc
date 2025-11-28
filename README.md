@@ -167,6 +167,29 @@ The MPC now scales its Q/R weights each solve based on hitch angle and direction
 
 In order to compare how succesful our various controller methods are, using Euclidean Distance is not an accurate enough measure as it does not capture the nuance between the amount of control effort and time it takes to get to the final position based on different configuration. For example, a truck trailer system that is 2 feet away horizontally from a parking spot would have to perform a complex manuever in order to get to the desired goal state, but a truck trailer system that is 2 feet away veritcally from a parking spot would only need to back up a bit or pull forward a bit to get to the desired goal state. Using euclidean distance, however, would give both of these scenarios the same score. We implement LQR as a distance evalutation metric in `LQR_cost.py`. This is accomplished through two functions `lqr_riccati()` and `lqr_distance`. In `lqr_riccati()`, the Infinite-horizon Riccati P is calculated using the system dynamics. In `lqr_distance`, the P is used to calcluate the cost of the end state of the system and the goal state. These functions are then imported and called in each of the simulation files, where the score is outputed at the end of the simulation to the terminal. 
 
+### Test case presets (start/goal)
+
+Swap predefined start/goal pairs into `initialize.json` using `test_cases.json` and the helper script:
+
+```
+cd /Users/runingguan/car-trailer-mpc
+python python-files/apply_case.py --case diagonal_reverse_cross_aisle
+
+
+and then run those 
+
+cd /Users/runingguan/car-trailer-mpc/python-files
+python trajectory_animation.py   # visualize initial guess + planned trajectory
+python simulation.py            # run MPC sim
+
+but idk im confused bc they look the same
+
+```
+
+Available cases (update `test_cases.json` to add more): `baseline_hybrid_path`, `center_aisle_long_reverse`, `left_offset_reverse_turn_in`, `right_lane_forward_exit`, `mid_lane_change_reverse`, `diagonal_reverse_cross_aisle`.
+
+What it does: overwrites `initialize.json` with a two-waypoint start/goal for the selected case. Then run your usual pipeline/visualizations (e.g., `python python-files/trajectory_animation.py`).
+
 ## FAQ 
 
 * **What software do I need?** To make this project work you need [Unity](https://unity.com/) together with 

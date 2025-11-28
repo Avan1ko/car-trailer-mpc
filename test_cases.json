@@ -1,0 +1,105 @@
+{
+  "units": {
+    "position": "meters (Unity/world coords)",
+    "heading": "radians, same convention as initialize.json",
+    "hitch_angle": "radians, 0 when truck and trailer are aligned"
+  },
+  "cases": [
+    {
+      "name": "baseline_hybrid_path",
+      "start": {
+        "x": 22.2772,
+        "y": 29.7955,
+        "heading_rad": -3.394162338109741,
+        "hitch_angle_rad": 0.0
+      },
+      "goal": {
+        "x": 17.7816,
+        "y": 12.3762,
+        "heading_rad": -2.7354223962363546,
+        "hitch_angle_rad": 0.0
+      },
+      "notes": "Exact start/goal pulled from the current initialize.json Hybrid A* path."
+    },
+    {
+      "name": "center_aisle_long_reverse",
+      "start": {
+        "x": 60.5,
+        "y": 30.0,
+        "heading_rad": -1.5708,
+        "hitch_angle_rad": 0.0
+      },
+      "goal": {
+        "x": 60.5,
+        "y": 6.0,
+        "heading_rad": -1.5708,
+        "hitch_angle_rad": 0.0
+      },
+      "notes": "Long straight reverse down the central aisle to stress jackknife avoidance."
+    },
+    {
+      "name": "left_offset_reverse_turn_in",
+      "start": {
+        "x": 38.5,
+        "y": 26.0,
+        "heading_rad": -2.8798,
+        "hitch_angle_rad": -0.05
+      },
+      "goal": {
+        "x": 27.5,
+        "y": 7.5,
+        "heading_rad": -1.5708,
+        "hitch_angle_rad": -0.05
+      },
+      "notes": "Reverse with an S-turn into a left-offset bay; checks steering/hitch coordination."
+    },
+    {
+      "name": "right_lane_forward_exit",
+      "start": {
+        "x": 93.5,
+        "y": 6.0,
+        "heading_rad": 1.5708,
+        "hitch_angle_rad": 0.0
+      },
+      "goal": {
+        "x": 93.5,
+        "y": 28.0,
+        "heading_rad": 1.5708,
+        "hitch_angle_rad": 0.0
+      },
+      "notes": "Forward pull-out from a low aisle to the staging area; no trailer angle allowed."
+    },
+    {
+      "name": "mid_lane_change_reverse",
+      "start": {
+        "x": 82.5,
+        "y": 24.0,
+        "heading_rad": -1.5708,
+        "hitch_angle_rad": 0.0
+      },
+      "goal": {
+        "x": 49.5,
+        "y": 9.0,
+        "heading_rad": -1.5708,
+        "hitch_angle_rad": 0.0
+      },
+      "notes": "Reverse down an aisle then shift laterally into an adjacent lane mid-run."
+    },
+    {
+      "name": "diagonal_reverse_cross_aisle",
+      "start": {
+        "x": 48.0,
+        "y": 26.0,
+        "heading_rad": -2.3562,
+        "hitch_angle_rad": 0.0
+      },
+      "goal": {
+        "x": 72.0,
+        "y": 8.5,
+        "heading_rad": -1.5708,
+        "hitch_angle_rad": 0.0
+      },
+      "notes": "Reverse at a diagonal across aisles into a lower bay; creates a visibly different green initial guess."
+    }
+  ]
+}

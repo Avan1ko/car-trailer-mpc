@@ -144,6 +144,9 @@ if __name__ == "__main__":
         
         positions = np.array(data['Positions'])
         plt.plot(positions[:,0], positions[:,1], "-g", label="initial guess")
+        if k == 0:
+            plt.scatter(positions[0,0], positions[0,1], c="lime", marker="o", edgecolors="k", label="start")
+            plt.scatter(positions[-1,0], positions[-1,1], c="black", marker="x", s=80, label="goal")
 
         # Plot the trajectory from the optimization
         plt.plot(states[0,:], states[1,:], "-r", label="course")
@@ -165,4 +168,3 @@ if __name__ == "__main__":
         k += 1
 
     plt.show()
-
