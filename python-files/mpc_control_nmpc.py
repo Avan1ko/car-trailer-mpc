@@ -92,6 +92,8 @@ class TruckTrailerNMPC(TrajectoryPlanning):
         reference_inputs_flat = reference_inputs.T.reshape((-1, 1))
         if self._last_solution is not None:
             vars_guess = self._shift_solution(self._last_solution)
+            print(f"vars_guess: {vars_guess}")
+            print(self._get_initial_guess(reference_states, reference_inputs))
         else:
             vars_guess = self._get_initial_guess(reference_states, reference_inputs)
 

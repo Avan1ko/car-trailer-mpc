@@ -19,8 +19,8 @@ from LQR_cost import lqr_distance
 ENABLE_DISTURBANCES = False  # Set to False to disable all disturbances
 
 DISTURBANCE_PARAMS = {
-    'friction_coeff': 1,        # .7 0.0-1.0, 1.0 = perfect friction, 0.7 = 70% friction (low friction)
-    'slippage_coeff': 1,        # .8 0.0-1.0, 1.0 = no slippage, 0.8 = 80% steering effectiveness (20% slippage)
+    'friction_coeff': .7,        # .7 0.0-1.0, 1.0 = perfect friction, 0.7 = 70% friction (low friction)
+    'slippage_coeff': .8,        # .8 0.0-1.0, 1.0 = no slippage, 0.8 = 80% steering effectiveness (20% slippage)
     'process_noise_std': 0.02,     # .02 Standard deviation for process noise (additive to states)
     'lateral_slip_gain': 0.00,     # Lateral drift coefficient (sideways movement)
     'slip_angle_max': 0.0,         # Maximum slip angle in radians for tire slippage model
@@ -202,7 +202,7 @@ def do_interpolation(state_traj, input_traj, dt_1, dt_2):
 if __name__ == "__main__":
     dt_to = 0.1
     dt = 0.05
-    horizon = 60
+    horizon = 100
     params = {"M": 0.15, 
               "L1": 7.05, "L2": 12.45, 
               "W1": 3.05, "W2": 2.95,

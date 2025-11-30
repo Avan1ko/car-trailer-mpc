@@ -16,13 +16,13 @@ from LQR_cost import lqr_distance
 # ============================================================================
 # DISTURBANCE CONFIGURATION
 # ============================================================================
-ENABLE_DISTURBANCES = False  # Start nominal; re-enable once stable
+ENABLE_DISTURBANCES = True  # Start nominal; re-enable once stable
 
 DISTURBANCE_PARAMS = {
     'friction_coeff': 1,
     'slippage_coeff': 1,
-    'process_noise_std': 0.02,
-    'lateral_slip_gain': 0.00,
+    'process_noise_std': 0.001,
+    'lateral_slip_gain': 0.0,
     'slip_angle_max': 0.0,
 }
 
