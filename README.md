@@ -190,6 +190,28 @@ Available cases (update `test_cases.json` to add more): `baseline_hybrid_path`, 
 
 What it does: overwrites `initialize.json` with a two-waypoint start/goal for the selected case. Then run your usual pipeline/visualizations (e.g., `python python-files/trajectory_animation.py`).
 
+### Parking obstacles (block all stalls except one)
+
+The planner reads parking obstacles from the repo-level `obstacles.json`. Use the helper to regenerate it with all one-sided stalls blocked except one open slot:
+
+```
+cd /Users/runingguan/car-trailer-mpc
+python python-files/make_parking_obstacles.py --open-spot 4 --depth 20 --update-test-case --case-name left_offset_reverse_turn_in
+```
+
+Flags:
+- `--open-spot` (1–10) chooses which stall stays open; everything else becomes a parked-trailer box.
+- `--depth` sets stall depth in meters (default 20). Width stays 10 m per stall with 1 m stripe gaps.
+- `--update-test-case` + `--case-name ...` optionally overwrite that test case’s goal to the open stall center.
+- `--write-initialize` optionally moves the goal in `initialize.json` to the open stall center (skip if you’ll use `apply_case.py`).
+
+After regenerating obstacles, apply your test case and run the animation/sim as usual:
+
+```
+python python-files/apply_case.py --case left_offset_reverse_turn_in
+MPLCONFIGDIR=.mplconfig python python-files/trajectory_animation.py
+```
+
 ## FAQ 
 
 * **What software do I need?** To make this project work you need [Unity](https://unity.com/) together with 

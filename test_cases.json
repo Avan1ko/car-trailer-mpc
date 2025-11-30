@@ -42,12 +42,12 @@
       "start": {
         "x": 38.5,
         "y": 26.0,
-        "heading_rad": -1.3090,
+        "heading_rad": -1.309,
         "hitch_angle_rad": -0.05
       },
       "goal": {
-        "x": 27.5,
-        "y": 7.5,
+        "x": 39.0,
+        "y": 10.0,
         "heading_rad": 0,
         "hitch_angle_rad": -0.05
       },
