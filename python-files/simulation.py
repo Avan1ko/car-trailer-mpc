@@ -7,6 +7,7 @@ import math
 from truck_trailer_model import TruckTrailerModel
 from mpc_control import MPCTrackingControlLinearized
 from mpc_control import MPCTrackingControl
+from mpc_control import MPCTrackingControlLTV
 from tube_mpc_wrapper import TubeMPCWrapper
 from get_obstacles import get_obstacles
 from get_initial_goal_states import get_initial_goal_states
@@ -23,13 +24,14 @@ ENABLE_DISTURBANCES = False  # Set to False to disable all disturbances
 # ============================================================================
 # TUBE MPC CONFIGURATION
 # ============================================================================
-USE_LINEARIZED_MPC = True  # Set to True to use Linearized MPC (robust control)
+USE_LINEARIZED_MPC = False  # Set to True to use Linearized MPC (robust control)
+USE_LTV_MPC = True  # Set to True to use LTV MPC (robust control)
 USE_TUBE_MPC = False  # Set to True to use Tube MPC (robust control)
 TUBE_DISTURBANCE_BOUND = .02  # Maximum expected disturbance magnitude
 
 DISTURBANCE_PARAMS = {
-    'friction_coeff': .8,        # .7 0.0-1.0, 1.0 = perfect friction, 0.7 = 70% friction (low friction)
-    'slippage_coeff': .8,        # .8 0.0-1.0, 1.0 = no slippage, 0.8 = 80% steering effectiveness (20% slippage)
+    'friction_coeff': 1.0,        # .7 0.0-1.0, 1.0 = perfect friction, 0.7 = 70% friction (low friction)
+    'slippage_coeff': 1.0,        # .8 0.0-1.0, 1.0 = no slippage, 0.8 = 80% steering effectiveness (20% slippage)
     'process_noise_std': 0.00,     # .02 Standard deviation for process noise (additive to states)
     'lateral_slip_gain': 0.00,     # Lateral drift coefficient (sideways movement)
     'slip_angle_max': 0.0,         # Maximum slip angle in radians for tire slippage model
@@ -211,7 +213,7 @@ def do_interpolation(state_traj, input_traj, dt_1, dt_2):
 if __name__ == "__main__":
     dt_to = 0.1
     dt = 0.05
-    horizon = 60
+    horizon = 50
     params = {"M": 0.15, 
               "L1": 7.05, "L2": 12.45, 
               "W1": 3.05, "W2": 2.95,
@@ -249,7 +251,12 @@ if __name__ == "__main__":
         print(f"  Disturbance bound: {TUBE_DISTURBANCE_BOUND}")
         print("=" * 60)
     else:
-        if USE_LINEARIZED_MPC:
+        if USE_LTV_MPC:
+            controller = MPCTrackingControlLTV(model, params,
+                                        Q, R, 
+                                        state_bound, input_bound)
+            print("LTV MPC ENABLED")
+        elif USE_LINEARIZED_MPC:
             controller = MPCTrackingControlLinearized(model, params,
                                         Q, R, 
                                         state_bound, input_bound)
