@@ -5,7 +5,9 @@ from math import cos, sin, tan, pi
 from draw import draw_truck_trailer
 import math
 from truck_trailer_model import TruckTrailerModel
+from mpc_control import MPCTrackingControlLinearized
 from mpc_control import MPCTrackingControl
+from tube_mpc_wrapper import TubeMPCWrapper
 from get_obstacles import get_obstacles
 from get_initial_goal_states import get_initial_goal_states
 import casadi as ca
@@ -18,10 +20,17 @@ from LQR_cost import lqr_distance
 # ============================================================================
 ENABLE_DISTURBANCES = False  # Set to False to disable all disturbances
 
+# ============================================================================
+# TUBE MPC CONFIGURATION
+# ============================================================================
+USE_LINEARIZED_MPC = True  # Set to True to use Linearized MPC (robust control)
+USE_TUBE_MPC = False  # Set to True to use Tube MPC (robust control)
+TUBE_DISTURBANCE_BOUND = .02  # Maximum expected disturbance magnitude
+
 DISTURBANCE_PARAMS = {
-    'friction_coeff': 1,        # .7 0.0-1.0, 1.0 = perfect friction, 0.7 = 70% friction (low friction)
-    'slippage_coeff': 1,        # .8 0.0-1.0, 1.0 = no slippage, 0.8 = 80% steering effectiveness (20% slippage)
-    'process_noise_std': 0.02,     # .02 Standard deviation for process noise (additive to states)
+    'friction_coeff': .8,        # .7 0.0-1.0, 1.0 = perfect friction, 0.7 = 70% friction (low friction)
+    'slippage_coeff': .8,        # .8 0.0-1.0, 1.0 = no slippage, 0.8 = 80% steering effectiveness (20% slippage)
+    'process_noise_std': 0.00,     # .02 Standard deviation for process noise (additive to states)
     'lateral_slip_gain': 0.00,     # Lateral drift coefficient (sideways movement)
     'slip_angle_max': 0.0,         # Maximum slip angle in radians for tire slippage model
 }
@@ -227,9 +236,30 @@ if __name__ == "__main__":
                    "ub": ca.DM([ ca.inf,  ca.inf,  ca.pi,  ca.pi/3.,  ca.pi/4.,  10.])}      
     input_bound = {"lb": ca.DM([-5, -ca.pi/2]),
                    "ub": ca.DM([ 5,  ca.pi/2])}
-    controller = MPCTrackingControl(model, params,
-                                    Q, R, 
-                                    state_bound, input_bound)
+    
+    # Create controller (Tube MPC or standard MPC)
+    if USE_TUBE_MPC:
+        controller = TubeMPCWrapper(model, params,
+                                    Q, R,
+                                    state_bound, input_bound,
+                                    Q_lqr=Q, R_lqr=R,
+                                    disturbance_bound=TUBE_DISTURBANCE_BOUND)
+        print("=" * 60)
+        print("TUBE MPC ENABLED")
+        print(f"  Disturbance bound: {TUBE_DISTURBANCE_BOUND}")
+        print("=" * 60)
+    else:
+        if USE_LINEARIZED_MPC:
+            controller = MPCTrackingControlLinearized(model, params,
+                                        Q, R, 
+                                        state_bound, input_bound)
+            print("Linearized MPC ENABLED")
+        else:
+            controller = MPCTrackingControl(model, params,
+                                        Q, R, 
+                                        state_bound, input_bound)
+            print("Standard MPC ENABLED")
+        print("Standard MPC (no tube)")
     initial_state, goal_state = get_initial_goal_states()
     initial_state.append(0)
     initial_state.append(0)
@@ -288,8 +318,13 @@ if __name__ == "__main__":
             ref_state_traj_[:,:] = ca.repmat(ref_state_traj[:,-1], 1, horizon+1)
             ref_input_traj_[:,:] = ca.repmat(np.zeros((model.num_input,1)), 1, horizon)
         
-        states, inputs = controller.solve(state, ref_state_traj_, ref_input_traj_)     
-        u_con = inputs[:,0]
+        # Solve MPC (returns u_applied for Tube MPC, or standard solve for regular MPC)
+        if USE_TUBE_MPC:
+            u_applied, states, inputs = controller.solve(state, ref_state_traj_, ref_input_traj_)
+            u_con = u_applied
+        else:
+            states, inputs = controller.solve(state, ref_state_traj_, ref_input_traj_)
+            u_con = inputs[:,0]
         
         # Apply disturbances if enabled
         if ENABLE_DISTURBANCES:

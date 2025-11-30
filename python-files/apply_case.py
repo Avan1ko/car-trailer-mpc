@@ -4,7 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 TEST_CASES = ROOT / "test_cases.json"
-DEFAULT_OUTPUT = ROOT / "initialize.json"
+DEFAULT_OUTPUT = ROOT / "python-files/initialize.json"
 
 
 def load_cases() -> dict:
