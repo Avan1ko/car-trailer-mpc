@@ -6,6 +6,7 @@ from draw import draw_truck_trailer
 import math
 from truck_trailer_model import TruckTrailerModel
 from mpc_control import MPCTrackingControl
+from mpc_control_online import MPCTrackingControlOnline
 from get_obstacles import get_obstacles
 from get_initial_goal_states import get_initial_goal_states
 import casadi as ca
@@ -16,15 +17,16 @@ from LQR_cost import lqr_distance
 # ============================================================================
 # DISTURBANCE CONFIGURATION
 # ============================================================================
-ENABLE_DISTURBANCES = False  # Set to False to disable all disturbances
-
+ENABLE_DISTURBANCES = True  # Set to False to disable all disturbances
+USE_ONLINE_MPC = False  # Set to True to use Online MPC
 DISTURBANCE_PARAMS = {
-    'friction_coeff': 1,        # .7 0.0-1.0, 1.0 = perfect friction, 0.7 = 70% friction (low friction)
-    'slippage_coeff': 1,        # .8 0.0-1.0, 1.0 = no slippage, 0.8 = 80% steering effectiveness (20% slippage)
+    'friction_coeff': 0.7,        # .7 0.0-1.0, 1.0 = perfect friction, 0.7 = 70% friction (low friction)
+    'slippage_coeff': 0.8,        # .8 0.0-1.0, 1.0 = no slippage, 0.8 = 80% steering effectiveness (20% slippage)
     'process_noise_std': 0.02,     # .02 Standard deviation for process noise (additive to states)
-    'lateral_slip_gain': 0.00,     # Lateral drift coefficient (sideways movement)
-    'slip_angle_max': 0.0,         # Maximum slip angle in radians for tire slippage model
+    'lateral_slip_gain': 0.02,     # Lateral drift coefficient (sideways movement)
+    'slip_angle_max': 0.01,         # Maximum slip angle in radians for tire slippage model
 }
+
 
 def f_dyn(q, u, params):
     L1 = params['L1']
@@ -227,7 +229,12 @@ if __name__ == "__main__":
                    "ub": ca.DM([ ca.inf,  ca.inf,  ca.pi,  ca.pi/3.,  ca.pi/4.,  10.])}      
     input_bound = {"lb": ca.DM([-5, -ca.pi/2]),
                    "ub": ca.DM([ 5,  ca.pi/2])}
-    controller = MPCTrackingControl(model, params,
+    if USE_ONLINE_MPC:
+        controller = MPCTrackingControlOnline(model, params,
+                                    Q, R, 
+                                    state_bound, input_bound)
+    else:
+        controller = MPCTrackingControl(model, params,
                                     Q, R, 
                                     state_bound, input_bound)
     initial_state, goal_state = get_initial_goal_states()
