@@ -4,6 +4,7 @@ import numpy as np
 import json
 import casadi as ca
 import time
+from pathlib import Path
 
 class TrajectoryOptimization(TrajectoryPlanning):
     def __init__(self, 
@@ -190,8 +191,8 @@ class TrajectoryOptimization(TrajectoryPlanning):
         self._lb_vars, self._ub_vars = self._state_input_constraints()        
         cost = self._cost_function()
         solver_opts = {
-            'ipopt': {'max_iter': 5000, 'print_level': 5}, # max_iter was 5000 TEST: 'honor_original_bounds': 'no', 'constr_viol_tol': 1e-8
-            'print_time': True,
+            'ipopt': {'max_iter': 5000, 'print_level': 0}, # max_iter was 5000 TEST: 'honor_original_bounds': 'no', 'constr_viol_tol': 1e-8
+            'print_time': False, #changed print_time from true to false, changed print_level from 5 to 0
         }               
         nlp_prob = {
             'f': cost,
@@ -226,7 +227,8 @@ class TrajectoryOptimization(TrajectoryPlanning):
         num_obstacle = len(self.obstacle_list)
 
         # Get the states from the json
-        with open('initialize.json', 'r') as f:
+        file_path = Path(__file__).resolve().parent.parent/ "initialize.json"
+        with open(file_path, 'r') as f:
             data = json.load(f)
 
         # Now we can access the data from the file. For example:
