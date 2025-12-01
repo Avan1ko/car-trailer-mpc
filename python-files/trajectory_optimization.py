@@ -115,10 +115,10 @@ class TrajectoryOptimization(TrajectoryPlanning):
             Rv[1,1] =  ca.cos(heading)
             
             Rt = ca.SX.zeros((2, 2))
-            Rv[0,0] =  ca.cos(heading+hitch_angle)
-            Rv[0,1] = -ca.sin(heading+hitch_angle)
-            Rv[1,0] =  ca.sin(heading+hitch_angle)
-            Rv[1,1] =  ca.cos(heading+hitch_angle)
+            Rt[0,0] =  ca.cos(heading+hitch_angle)
+            Rt[0,1] = -ca.sin(heading+hitch_angle)
+            Rt[1,0] =  ca.sin(heading+hitch_angle)
+            Rt[1,1] =  ca.cos(heading+hitch_angle)
             
             for i, obstacle in enumerate(self.obstacle_list):
                 Ao, bo = self._obstacle_Hrep(obstacle) # Getting the obstacle half-space representation of current obstacle
@@ -226,14 +226,14 @@ class TrajectoryOptimization(TrajectoryPlanning):
         vars_guess = []
         num_obstacle = len(self.obstacle_list)
 
-        # Get the states from the json
-        file_path = Path(__file__).resolve().parent.parent/ "initialize.json"
+        # Get the states from initialize.json
+        file_path = Path(__file__).resolve().parent.parent / "initialize.json"
         with open(file_path, 'r') as f:
             data = json.load(f)
 
         # Now we can access the data from the file. For example:
         positions = np.array(data['Positions'])
-        headings = np.array(data['Headings']) + np.pi/2 # Have to do this, because of differences in coordinate systems
+        headings = np.array(data['Headings']) + np.pi/2 # Coordinate frame shift
         hitch_angles = np.array(data['HitchAngles'])
         
         # Interpolate these states using cubic spline interpolation, making as many states as the horizon 

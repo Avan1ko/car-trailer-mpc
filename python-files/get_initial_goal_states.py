@@ -10,7 +10,7 @@ def get_initial_goal_states():
 
     # Now we can access the data from the file. For example:
     positions = np.array(data['Positions'])
-    headings = np.array(data['Headings']) + np.pi/2 # Have to do this, because of differences in coordinate systems
+    headings = np.array(data['Headings']) + np.pi/2 # Coordinate frame shift
     hitch_angles = np.array(data['HitchAngles'])
 
     # Reconstruct initial state and goal state, so we can send them back in the right format
