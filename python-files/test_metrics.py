@@ -1,5 +1,6 @@
 import numpy as np
 import casadi as ca
+from scipy.optimize import linprog
 
 def _obstacle_Hrep(obstacle):
     width = obstacle["width"]
@@ -50,6 +51,9 @@ def _collision_constraints(model, states, obstacle_list):
     # (Handles SX or DM input)
     states_np = ca.DM(states).full()  # shape should be (4, N)
     N = states_np.shape[1]
+    print(N)
+    print(states)
+    print(states.shape)
 
     collision_count = 0
     info = []
@@ -71,12 +75,12 @@ def _collision_constraints(model, states, obstacle_list):
 
         # Rotation matrices numerically (clockwise)
         Rv = np.array([
-            [np.cos(heading),  np.sin(heading)],
-            [-np.sin(heading), np.cos(heading)]
+            [np.cos(heading),  -np.sin(heading)],
+            [np.sin(heading), np.cos(heading)]
         ])
         Rt = np.array([
-            [np.cos(heading + hitch),  np.sin(heading + hitch)],
-            [-np.sin(heading + hitch), np.cos(heading + hitch)]
+            [np.cos(heading + hitch),  -np.sin(heading + hitch)],
+            [np.sin(heading + hitch), np.cos(heading + hitch)]
         ])
 
         for obs in obstacle_list:
@@ -110,21 +114,39 @@ def _collision_constraints(model, states, obstacle_list):
                 b_trailer
             ])
 
-            # Rank test using NumPy
+            c = np.zeros(2)
 
-            AB_vehicle = np.hstack([A_vehicle_obs, b_vehicle_obs])
-            AB_trailer = np.hstack([A_trailer_obs, b_trailer_obs])
-            rankA_vehicle  = np.linalg.matrix_rank(A_vehicle_obs)
-            rankAB_vehicle = np.linalg.matrix_rank(AB_vehicle)
-            rankA_trailer = np.linalg.matrix_rank(A_trailer_obs)
-            rankAB_trailer = np.linalg.matrix_rank(AB_trailer) 
-
-            if (rankA_vehicle == rankAB_vehicle and rankA_vehicle <= A_vehicle_obs.shape[0]) or (rankA_trailer == rankAB_trailer and rankA_trailer <= A_trailer_obs.shape[0]):
-                collision_count += 1
+            res_vehicle = linprog(c, A_ub=A_vehicle_obs, b_ub=b_vehicle_obs, method="highs")
+            res_trailer = linprog(c, A_ub = A_trailer_obs, b_ub = b_trailer_obs, method="highs")
+            if res_vehicle.success or res_trailer.success:
+                collision_count +=1
                 info.append({
                     "position": [x_rear, y_rear],
                     "time_step": k,
                     "obstacle": obs
                 })
+
+            # Rank test using NumPy
+
+            # AB_vehicle = np.hstack([A_vehicle_obs, b_vehicle_obs])
+            # AB_trailer = np.hstack([A_trailer_obs, b_trailer_obs])
+            # rankA_vehicle  = np.linalg.matrix_rank(A_vehicle_obs)
+            # rankAB_vehicle = np.linalg.matrix_rank(AB_vehicle)
+            # rankA_trailer = np.linalg.matrix_rank(A_trailer_obs)
+            # rankAB_trailer = np.linalg.matrix_rank(AB_trailer) 
+
+            # print("Rank Info ")
+            # print(rankA_trailer)
+            # print(rankAB_trailer)
+            # print(A_trailer_obs.shape[0])
+
+
+            # if (rankA_vehicle == rankAB_vehicle and rankA_vehicle <= A_vehicle_obs.shape[1]) or (rankA_trailer == rankAB_trailer and rankA_trailer <= A_trailer_obs.shape[1]):
+            #     collision_count += 1
+            #     info.append({
+            #         "position": [x_rear, y_rear],
+            #         "time_step": k,
+            #         "obstacle": obs
+            #     })
 
     return collision_count, info

@@ -12,15 +12,16 @@ import casadi as ca
 import copy
 import os
 from LQR_cost import lqr_distance
+from test_metrics import _collision_constraints
 
 # ============================================================================
 # DISTURBANCE CONFIGURATION
 # ============================================================================
-ENABLE_DISTURBANCES = False  # Set to False to disable all disturbances
+ENABLE_DISTURBANCES = True  # Set to False to disable all disturbances
 
 DISTURBANCE_PARAMS = {
-    'friction_coeff': 1,        # .7 0.0-1.0, 1.0 = perfect friction, 0.7 = 70% friction (low friction)
-    'slippage_coeff': 1,        # .8 0.0-1.0, 1.0 = no slippage, 0.8 = 80% steering effectiveness (20% slippage)
+    'friction_coeff': 0.9,        # .7 0.0-1.0, 1.0 = perfect friction, 0.7 = 70% friction (low friction)
+    'slippage_coeff': 0.9,        # .8 0.0-1.0, 1.0 = no slippage, 0.8 = 80% steering effectiveness (20% slippage)
     'process_noise_std': 0.02,     # .02 Standard deviation for process noise (additive to states)
     'lateral_slip_gain': 0.00,     # Lateral drift coefficient (sideways movement)
     'slip_angle_max': 0.0,         # Maximum slip angle in radians for tire slippage model
@@ -248,6 +249,7 @@ if __name__ == "__main__":
     time = 0.
     
     state = copy.deepcopy(initial_state)
+    
     x =  [state[0]]
     y = [state[1]]
     theta = [state[2]]
@@ -330,6 +332,23 @@ if __name__ == "__main__":
     score = lqr_distance(state[-6:], ref_state_traj_[:, -1], params, model, Q, R, ref_input_traj_[:, -1])
     print("LQR distance score: ")
     print(score)
+
+
+    states = ca.horzcat(x, y, theta, psi, phi, v)
+    states = states.T
+    print(len(x))
+    print(len(y))
+    print(len(theta))
+    print(len(psi))
+    print(len(phi))
+    print(len(v))
+    print(states.shape)
+
+
+    num_collisions, collisions_info = _collision_constraints(model, states, obstacle_list)
+    print("Collisions ")
+    print(num_collisions)
+    print(collisions_info)
     
     plt.show()
     
