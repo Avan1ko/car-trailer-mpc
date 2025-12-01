@@ -1,9 +1,11 @@
 import json
 import numpy as np
+from pathlib import Path
 
 def get_initial_goal_states():
     # Load data from the JSON file
-    with open('initialize.json', 'r') as f:
+    file_path = Path(__file__).resolve().parent.parent/ "initialize.json"
+    with open(file_path, 'r') as f:
         data = json.load(f)
 
     # Now we can access the data from the file. For example:
@@ -16,6 +18,11 @@ def get_initial_goal_states():
     initial_state.append([positions[0,0],positions[0,1],headings[0],hitch_angles[0]])
     goal_state = []
     goal_state.append([positions[-1,0],positions[-1,1],headings[-1],hitch_angles[-1]])
+
+    print("Initial State: ")
+    print(initial_state)
+    print("Goal State: ")
+    print(goal_state)
     return initial_state[0], goal_state[0]
 # Each variable is now a numpy array. For example, positions is a 2D array with shape (N, 2), where column 1 is x coordinates and column 2 is y (or in our case z) coordinates
 

@@ -15,6 +15,7 @@ import os
 import json
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from pathlib import Path
 
 do_planning = True
 
@@ -92,6 +93,11 @@ if __name__ == "__main__":
     initial_state = np.array(initial_state)
     goal_state = np.array(goal_state)
 
+    print("initial state: ")
+    print(initial_state)
+    print("goal state: ")
+    print(goal_state)
+
     # Manually setting goal state for heading and hitch_angle to exact values
     # goal_state[2] = pi/2 
     # goal_state[3] = 0
@@ -138,7 +144,8 @@ if __name__ == "__main__":
         
         # Add plot of hybrid A* (reference trajectory)
         # Get the states from the json
-        with open('initialize.json', 'r') as f:
+        file_path = Path(__file__).resolve().parent.parent/ "initialize.json"
+        with open(file_path, 'r') as f:
             data = json.load(f)
 
         
@@ -159,8 +166,11 @@ if __name__ == "__main__":
             plt.gca().add_patch(Rectangle(xy, w, h))
         draw_truck_trailer(pose=state[:4], params=params)
 
-        plt.axis("equal")
-        plt.grid(True)
+        ax = plt.gca()
+        ax.set_aspect("equal")
+        ax.set_ylim(0, 70)
+        ax.set_xlim(-20, 70)
+        plt.grid(False)
         plt.legend()
         plt.pause(dt)
         # plt.pause(0.1)
