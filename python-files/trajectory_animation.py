@@ -63,13 +63,13 @@ def update_initialize_with_rrt(step_size=3.5, max_iters=50000, goal_rate=0.3, cl
     """Generate an RRT path and overwrite initialize.json so the optimizer seeds with it."""
     root = Path(__file__).resolve().parent.parent
     initialize_path = root / "initialize.json"
-    backup_path = root / "initialize_hybrid.json"
+    # backup_path = root / "initialize_hybrid.json"
 
-    original_headings, original_hitches = _load_boundary_orientations(initialize_path, backup_path)
+    # original_headings, original_hitches = _load_boundary_orientations(initialize_path, backup_path)
 
-    if initialize_path.exists() and not backup_path.exists():
-        shutil.copy(initialize_path, backup_path)
-        print(f"Backed up initialize.json -> {backup_path}")
+    # if initialize_path.exists() and not backup_path.exists():
+    #     shutil.copy(initialize_path, backup_path)
+    #     print(f"Backed up initialize.json -> {backup_path}")
 
     raw_obstacles = get_obstacles()
     obstacles = build_obstacle_list(raw_obstacles)
@@ -103,10 +103,10 @@ def update_initialize_with_rrt(step_size=3.5, max_iters=50000, goal_rate=0.3, cl
     states[-1][3] = goal_state[3]
 
     # Keep the original boundary headings/hitches if they existed so goal/state orientation stays consistent.
-    if original_headings:
-        states[0][2] = original_headings[0]
-    if original_hitches:
-        states[0][3] = original_hitches[0]
+    # if original_headings:
+    #     states[0][2] = original_headings[0]
+    # if original_hitches:
+    #     states[0][3] = original_hitches[0]
 
     save_to_json(states, str(initialize_path))
     save_to_json(states, str(root / "python-files" / "rrt_path.json"))
@@ -214,30 +214,28 @@ if __name__ == "__main__":
         plt.gcf().canvas.mpl_connect('key_release_event',
                     lambda event: [exit(0) if event.key == 'escape' else None])
         
-        # Add plot of hybrid A* (reference trajectory)
-        # Get the states from the json
-        file_path = Path(__file__).resolve().parent.parent/ "initialize.json"
+        # Add plot of hybrid A* (reference trajectory) from initialize.json
+        file_path = Path(__file__).resolve().parent.parent / "initialize.json"
         with open(file_path, 'r') as f:
             data = json.load(f)
-
         
         positions = np.array(data['Positions'])
-        # Removed green initial guess line to highlight other overlays
+        plt.plot(positions[:,0], positions[:,1], "-g", label="Initial Guess Hybrid A*")
         # Optional: overlay RRT path if available without changing optimizer seed
-        rrt_path = Path(__file__).resolve().parent / "rrt_path.json"
-        if rrt_path.exists():
-            with open(rrt_path, "r") as f:
-                rrt_data = json.load(f)
-                rrt_pos = np.array(rrt_data.get("Positions", []))
-                if len(rrt_pos) > 1:
-                    plt.plot(rrt_pos[:,0], rrt_pos[:,1], "--b", label="rrt path")
+        # rrt_path = Path(__file__).resolve().parent / "rrt_path.json"
+        # if rrt_path.exists():
+        #     with open(rrt_path, "r") as f:
+        #         rrt_data = json.load(f)
+        #         rrt_pos = np.array(rrt_data.get("Positions", []))
+        #         if len(rrt_pos) > 1:
+        #             plt.plot(rrt_pos[:,0], rrt_pos[:,1], "--b", label="rrt path")
         if k == 0:
             plt.scatter(positions[0,0], positions[0,1], c="lime", marker="o", edgecolors="k", label="start")
             plt.scatter(positions[-1,0], positions[-1,1], c="black", marker="x", s=80, label="goal")
 
         # Plot the trajectory from the optimization
-        plt.plot(states[0,:], states[1,:], "-r", label="course")
-        plt.plot(x, y, "ob", label="trajectory")
+        plt.plot(states[0,:], states[1,:], "-r", label="Optimized Course")
+        plt.plot(x, y, "ob", label="Trajectory")
         for obstacle in obstacle_list:
             w = obstacle["width"]
             h = obstacle["height"]
@@ -249,7 +247,7 @@ if __name__ == "__main__":
         ax = plt.gca()
         ax.set_aspect("equal")
         ax.set_ylim(0, 70)
-        ax.set_xlim(-20, 70)
+        ax.set_xlim(-20, 80)
         plt.grid(False)
         plt.legend()
         plt.pause(dt)

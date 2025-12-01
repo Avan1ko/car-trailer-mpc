@@ -226,8 +226,8 @@ class TrajectoryOptimization(TrajectoryPlanning):
         vars_guess = []
         num_obstacle = len(self.obstacle_list)
 
-        # Get the states from the json
-        file_path = Path(__file__).resolve().parent.parent/ "initialize.json"
+        # Get the states from initialize.json
+        file_path = Path(__file__).resolve().parent.parent / "initialize.json"
         with open(file_path, 'r') as f:
             data = json.load(f)
 
