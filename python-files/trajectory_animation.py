@@ -9,6 +9,13 @@ from trajectory_optimization import TrajectoryOptimization
 from get_obstacles import get_obstacles
 from get_initial_goal_states import get_initial_goal_states
 from estimate_horizon import estimate_horizon
+from rrt_planner import (
+    PlanarRRTPlanner,
+    build_obstacle_list,
+    compute_bounds,
+    convert_points_to_states,
+    save_to_json,
+)
 import casadi as ca
 import copy
 import os
@@ -16,8 +23,10 @@ import json
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from pathlib import Path
+import shutil
 
 do_planning = True
+USE_RRT_INITIAL_GUESS = False
 
 def f_dyn(q, u, params):
     L1 = params['L1']
@@ -38,6 +47,70 @@ def f_dyn(q, u, params):
 def update(q, u, params):
     q_ = q + f_dyn(q, u, params)*params["dt"]
     return q_
+
+
+def _load_boundary_orientations(primary: Path, backup: Path):
+    """Return (headings, hitches) for start/goal from primary or backup."""
+    for path in (primary, backup):
+        if path.exists():
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data.get("Headings", []), data.get("HitchAngles", [])
+    return [], []
+
+
+def update_initialize_with_rrt(step_size=3.5, max_iters=50000, goal_rate=0.3, clearance=0.8):
+    """Generate an RRT path and overwrite initialize.json so the optimizer seeds with it."""
+    root = Path(__file__).resolve().parent.parent
+    initialize_path = root / "initialize.json"
+    backup_path = root / "initialize_hybrid.json"
+
+    original_headings, original_hitches = _load_boundary_orientations(initialize_path, backup_path)
+
+    if initialize_path.exists() and not backup_path.exists():
+        shutil.copy(initialize_path, backup_path)
+        print(f"Backed up initialize.json -> {backup_path}")
+
+    raw_obstacles = get_obstacles()
+    obstacles = build_obstacle_list(raw_obstacles)
+
+    # Read current start/goal (typically the two-point Hybrid A* export)
+    initial_state, goal_state = get_initial_goal_states()
+    start = np.array(initial_state[:2], dtype=float)
+    goal = np.array(goal_state[:2], dtype=float)
+
+    bounds = compute_bounds(obstacles, start, goal)
+    planner = PlanarRRTPlanner(
+        bounds,
+        obstacles,
+        step_size=step_size,
+        max_iterations=max_iters,
+        goal_sample_rate=goal_rate,
+        clearance=clearance,
+    )
+
+    try:
+        points = planner.plan(start, goal)
+    except Exception as exc:  # pragma: no cover - only used interactively
+        print(f"RRT initial guess failed: {exc}")
+        return
+
+    states = convert_points_to_states(points)
+    # Pin start/goal to the original slot definition so the optimizer targets the intended pose.
+    states[0][0], states[0][1] = start
+    states[-1][0], states[-1][1] = goal
+    states[-1][2] = goal_state[2]
+    states[-1][3] = goal_state[3]
+
+    # Keep the original boundary headings/hitches if they existed so goal/state orientation stays consistent.
+    if original_headings:
+        states[0][2] = original_headings[0]
+    if original_hitches:
+        states[0][3] = original_hitches[0]
+
+    save_to_json(states, str(initialize_path))
+    save_to_json(states, str(root / "python-files" / "rrt_path.json"))
+    print(f"Updated initialize.json with RRT path ({len(states)} waypoints).")
     
 if __name__ == "__main__":
     dt = 0.1
@@ -56,7 +129,6 @@ if __name__ == "__main__":
     #          "dt": dt,
     #          "horizon": 200}        
     model = TruckTrailerModel(params)
-    
 
     # Either import obstacles from JSON (using get_obstacles()) or use pre-set obstacles for testing, just uncomment one line out of the following 3:
     obstacle_list = get_obstacles()
@@ -150,7 +222,15 @@ if __name__ == "__main__":
 
         
         positions = np.array(data['Positions'])
-        plt.plot(positions[:,0], positions[:,1], "-g", label="initial guess")
+        # Removed green initial guess line to highlight other overlays
+        # Optional: overlay RRT path if available without changing optimizer seed
+        rrt_path = Path(__file__).resolve().parent / "rrt_path.json"
+        if rrt_path.exists():
+            with open(rrt_path, "r") as f:
+                rrt_data = json.load(f)
+                rrt_pos = np.array(rrt_data.get("Positions", []))
+                if len(rrt_pos) > 1:
+                    plt.plot(rrt_pos[:,0], rrt_pos[:,1], "--b", label="rrt path")
         if k == 0:
             plt.scatter(positions[0,0], positions[0,1], c="lime", marker="o", edgecolors="k", label="start")
             plt.scatter(positions[-1,0], positions[-1,1], c="black", marker="x", s=80, label="goal")

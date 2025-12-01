@@ -233,7 +233,7 @@ class TrajectoryOptimization(TrajectoryPlanning):
 
         # Now we can access the data from the file. For example:
         positions = np.array(data['Positions'])
-        headings = np.array(data['Headings']) + np.pi/2 # Have to do this, because of differences in coordinate systems
+        headings = np.array(data['Headings']) + np.pi/2 # Coordinate frame shift
         hitch_angles = np.array(data['HitchAngles'])
         
         # Interpolate these states using cubic spline interpolation, making as many states as the horizon 
