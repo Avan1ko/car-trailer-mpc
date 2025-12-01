@@ -23,7 +23,7 @@ class MPCTrackingControl(TrajectoryPlanning):
         cost += (self._states_sm[:,-1] - self._ref_states_sm[:,-1]).T  @ Q_f @ (self._states_sm[:,-1] - self._ref_states_sm[:,-1])
         
         return cost
-        
+
     def _build_solver(self):
         g_dyn, lb_dyn, ub_dyn = self._dynamics_constraints()
         g = g_dyn
@@ -70,7 +70,11 @@ class MPCTrackingControl(TrajectoryPlanning):
               reference_inputs):   
         reference_states_flat = reference_states.T.reshape((-1, 1))
         reference_inputs_flat = reference_inputs.T.reshape((-1, 1))
-        
+
+        #add collision constraints
+
+
+
         vars_guess = self._get_initial_guess(reference_states, reference_inputs)
         start = time.time()
         sol = self._solver(
