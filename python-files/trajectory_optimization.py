@@ -7,6 +7,8 @@ import time
 from pathlib import Path
 
 class TrajectoryOptimization(TrajectoryPlanning):
+
+    
     def __init__(self, 
                   dynamics, params, 
                   Q, R, 
