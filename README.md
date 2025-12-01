@@ -196,14 +196,13 @@ The planner reads parking obstacles from the repo-level `obstacles.json`. Use th
 
 ```
 cd /Users/runingguan/car-trailer-mpc
-python python-files/make_parking_obstacles.py --open-spot 4 --depth 20 --update-test-case --case-name left_offset_reverse_turn_in
+python python-files/make_parking_obstacles.py --open-spot 5 --depth 20
 ```
 
 Flags:
-- `--open-spot` (1–10) chooses which stall stays open; everything else becomes a parked-trailer box.
-- `--depth` sets stall depth in meters (default 20). Width stays 10 m per stall with 1 m stripe gaps.
-- `--update-test-case` + `--case-name ...` optionally overwrite that test case’s goal to the open stall center.
-- `--write-initialize` optionally moves the goal in `initialize.json` to the open stall center (skip if you’ll use `apply_case.py`).
+- `--open-spot` (1–10) chooses which stall stays open; everything else becomes a parked-trailer box, plus left/right “wall” obstacles outside the aisle.
+- `--depth` sets stall depth in meters (default 20). Width stays 5 m per stall with 1 m stripe gaps.
+- `--case-name ...` (default `left_offset_reverse_turn_in`) determines which test case goal is moved to the open stall center. `initialize.json` is also updated automatically.
 
 After regenerating obstacles, apply your test case and run the animation/sim as usual:
 

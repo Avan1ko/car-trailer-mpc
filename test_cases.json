@@ -24,14 +24,14 @@
     {
       "name": "center_aisle_long_reverse",
       "start": {
-        "x": 60.5,
-        "y": 30.0,
+        "x": 15.5,
+        "y": 55.0,
         "heading_rad": 0,
         "hitch_angle_rad": 0.0
       },
       "goal": {
-        "x": 60.5,
-        "y": 6.0,
+        "x": 15.5,
+        "y": 12.45,
         "heading_rad": 0,
         "hitch_angle_rad": 0.0
       },
@@ -43,26 +43,26 @@
         "x": 38.5,
         "y": 26.0,
         "heading_rad": -1.309,
-        "hitch_angle_rad": -0.05
+        "hitch_angle_rad": 0.0
       },
       "goal": {
-        "x": 39.0,
-        "y": 10.0,
-        "heading_rad": 0,
-        "hitch_angle_rad": -0.05
+        "x": 15.5,
+        "y": 12.45,
+        "heading_rad": 0.0,
+        "hitch_angle_rad": 0.0
       },
       "notes": "Reverse with an S-turn into a left-offset bay; checks steering/hitch coordination."
     },
     {
       "name": "right_lane_forward_exit",
       "start": {
-        "x": 93.5,
+        "x": 57.5,
         "y": 6.0,
         "heading_rad": 0,
         "hitch_angle_rad": 0.0
       },
       "goal": {
-        "x": 93.5,
+        "x": 57.5,
         "y": 28.0,
         "heading_rad": 0,
         "hitch_angle_rad": 0.0
@@ -72,13 +72,13 @@
     {
       "name": "mid_lane_change_reverse",
       "start": {
-        "x": 82.5,
+        "x": 51.5,
         "y": 24.0,
         "heading_rad": 0,
         "hitch_angle_rad": 0.0
       },
       "goal": {
-        "x": 49.5,
+        "x": 39.5,
         "y": 9.0,
         "heading_rad": 0,
         "hitch_angle_rad": 0.0
@@ -88,13 +88,13 @@
     {
       "name": "diagonal_reverse_cross_aisle",
       "start": {
-        "x": 48.0,
+        "x": 33.5,
         "y": 26.0,
         "heading_rad": -0.7854,
         "hitch_angle_rad": 0.0
       },
       "goal": {
-        "x": 72.0,
+        "x": 51.5,
         "y": 8.5,
         "heading_rad": 0,
         "hitch_angle_rad": 0.0
@@ -104,13 +104,13 @@
     {
       "name": "angle_test",
       "start": {
-        "x": 48.0,
+        "x": 27.5,
         "y": 26.0,
         "heading_rad": -1.57079632679,
         "hitch_angle_rad": 0.0
       },
       "goal": {
-        "x": 48.0,
+        "x": 27.5,
         "y": 6,
         "heading_rad": 0,
         "hitch_angle_rad": 0.0

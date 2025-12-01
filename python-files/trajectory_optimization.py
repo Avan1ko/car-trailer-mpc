@@ -115,10 +115,10 @@ class TrajectoryOptimization(TrajectoryPlanning):
             Rv[1,1] =  ca.cos(heading)
             
             Rt = ca.SX.zeros((2, 2))
-            Rv[0,0] =  ca.cos(heading+hitch_angle)
-            Rv[0,1] = -ca.sin(heading+hitch_angle)
-            Rv[1,0] =  ca.sin(heading+hitch_angle)
-            Rv[1,1] =  ca.cos(heading+hitch_angle)
+            Rt[0,0] =  ca.cos(heading+hitch_angle)
+            Rt[0,1] = -ca.sin(heading+hitch_angle)
+            Rt[1,0] =  ca.sin(heading+hitch_angle)
+            Rt[1,1] =  ca.cos(heading+hitch_angle)
             
             for i, obstacle in enumerate(self.obstacle_list):
                 Ao, bo = self._obstacle_Hrep(obstacle) # Getting the obstacle half-space representation of current obstacle

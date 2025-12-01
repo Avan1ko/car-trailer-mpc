@@ -166,8 +166,11 @@ if __name__ == "__main__":
             plt.gca().add_patch(Rectangle(xy, w, h))
         draw_truck_trailer(pose=state[:4], params=params)
 
-        plt.axis("equal")
-        plt.grid(True)
+        ax = plt.gca()
+        ax.set_aspect("equal")
+        ax.set_ylim(0, 70)
+        ax.set_xlim(-20, 70)
+        plt.grid(False)
         plt.legend()
         plt.pause(dt)
         # plt.pause(0.1)
