@@ -17,14 +17,16 @@ from LQR_cost import lqr_distance
 # ============================================================================
 # DISTURBANCE CONFIGURATION
 # ============================================================================
-ENABLE_DISTURBANCES = False  # Set to False to disable all disturbances
-USE_OBS_MPC = True  # Set to True to use MPC with obstacle constraints
+ENABLE_DISTURBANCES = True  # Set to False to disable all disturbances
+# Note: Controller switches dynamically based on obstacle collision detection in MPC horizon
+USE_OBS_MPC = False  # Set to True to use MPC with obstacle constraints
+USE_SWITCH_MPC = False  # Set to True to use switch MPC
 
 DISTURBANCE_PARAMS = {
-    'friction_coeff': .7,        # .7 0.0-1.0, 1.0 = perfect friction, 0.7 = 70% friction (low friction)
-    'slippage_coeff': .8,        # .8 0.0-1.0, 1.0 = no slippage, 0.8 = 80% steering effectiveness (20% slippage)
+    'friction_coeff': .9,        # .7 0.0-1.0, 1.0 = perfect friction, 0.7 = 70% friction (low friction)
+    'slippage_coeff': .9,        # .8 0.0-1.0, 1.0 = no slippage, 0.8 = 80% steering effectiveness (20% slippage)
     'process_noise_std': 0.02,     # .02 Standard deviation for process noise (additive to states)
-    'lateral_slip_gain': 0.00,     # Lateral drift coefficient (sideways movement)
+    'lateral_slip_gain': 0.01,     # Lateral drift coefficient (sideways movement)
     'slip_angle_max': 0.0,         # Maximum slip angle in radians for tire slippage model
 }
 
@@ -201,6 +203,173 @@ def do_interpolation(state_traj, input_traj, dt_1, dt_2):
     
     return state_traj_new, input_traj_new 
 
+# ============================================================================
+# COLLISION DETECTION HELPERS
+# ============================================================================
+
+def get_rect_corners(center_x, center_y, half_length, half_width, angle):
+    """
+    Get the 4 corners of an oriented rectangle.
+    
+    Args:
+        center_x, center_y: Center position of rectangle
+        half_length, half_width: Half dimensions (length along heading, width perpendicular)
+        angle: Rotation angle in radians
+        
+    Returns:
+        corners: numpy array of shape (4, 2) with corner coordinates
+    """
+    c, s = np.cos(angle), np.sin(angle)
+    # Local corners (centered at origin)
+    local_corners = np.array([
+        [ half_length,  half_width],
+        [ half_length, -half_width],
+        [-half_length, -half_width],
+        [-half_length,  half_width]
+    ])
+    # Rotation matrix
+    R = np.array([[c, -s], [s, c]])
+    # Rotate and translate
+    corners = (R @ local_corners.T).T + np.array([center_x, center_y])
+    return corners
+
+def project_polygon(corners, axis):
+    """Project polygon corners onto an axis and return min/max."""
+    projections = corners @ axis
+    return projections.min(), projections.max()
+
+def check_obb_aabb_collision(obb_corners, aabb_center, aabb_half_w, aabb_half_h):
+    """
+    Check collision between an oriented bounding box (OBB) and an axis-aligned 
+    bounding box (AABB) using the Separating Axis Theorem.
+    
+    Args:
+        obb_corners: numpy array (4, 2) of OBB corner coordinates
+        aabb_center: tuple (cx, cy) of AABB center
+        aabb_half_w, aabb_half_h: Half width and height of AABB
+        
+    Returns:
+        True if collision detected, False otherwise
+    """
+    # AABB corners
+    cx, cy = aabb_center
+    aabb_corners = np.array([
+        [cx + aabb_half_w, cy + aabb_half_h],
+        [cx + aabb_half_w, cy - aabb_half_h],
+        [cx - aabb_half_w, cy - aabb_half_h],
+        [cx - aabb_half_w, cy + aabb_half_h]
+    ])
+    
+    # Get axes to test (normals of edges)
+    # For AABB: always (1,0) and (0,1)
+    # For OBB: perpendicular to first two edges
+    axes = [
+        np.array([1.0, 0.0]),
+        np.array([0.0, 1.0]),
+    ]
+    
+    # OBB edge normals
+    edge1 = obb_corners[1] - obb_corners[0]
+    edge2 = obb_corners[3] - obb_corners[0]
+    # Normalize and get perpendiculars
+    if np.linalg.norm(edge1) > 1e-9:
+        axes.append(np.array([-edge1[1], edge1[0]]) / np.linalg.norm(edge1))
+    if np.linalg.norm(edge2) > 1e-9:
+        axes.append(np.array([-edge2[1], edge2[0]]) / np.linalg.norm(edge2))
+    
+    # Test all axes
+    for axis in axes:
+        obb_min, obb_max = project_polygon(obb_corners, axis)
+        aabb_min, aabb_max = project_polygon(aabb_corners, axis)
+        
+        # Check for gap (separating axis found)
+        if obb_max < aabb_min or aabb_max < obb_min:
+            return False
+    
+    # No separating axis found - collision!
+    return True
+
+def get_vehicle_center_np(x_rear, y_rear, heading, params):
+    """Compute vehicle center position (numpy version)."""
+    xv = x_rear + np.cos(heading) * params['L1'] / 2
+    yv = y_rear + np.sin(heading) * params['L1'] / 2
+    return xv, yv
+
+def get_trailer_center_np(x_rear, y_rear, heading, psi, params):
+    """Compute trailer center position (numpy version)."""
+    x_hitch = x_rear - np.cos(heading) * params['M']
+    y_hitch = y_rear - np.sin(heading) * params['M']
+    xt = x_hitch - np.cos(heading + psi) * params['L2'] / 2
+    yt = y_hitch - np.sin(heading + psi) * params['L2'] / 2
+    return xt, yt
+
+def check_state_collision(state, params, obstacle_list):
+    """
+    Check if a single state (vehicle + trailer) collides with any obstacle.
+    
+    Args:
+        state: State vector [x, y, theta, psi, phi, v] or at least [x, y, theta, psi]
+        params: Vehicle parameters dict
+        obstacle_list: List of obstacles with center, width, height
+        
+    Returns:
+        True if collision detected
+    """
+    x_rear, y_rear, heading, psi = state[0], state[1], state[2], state[3]
+    
+    # Get vehicle geometry
+    veh_cx, veh_cy = get_vehicle_center_np(x_rear, y_rear, heading, params)
+    veh_half_l = params['L1'] / 2
+    veh_half_w = params['W1'] / 2
+    veh_corners = get_rect_corners(veh_cx, veh_cy, veh_half_l, veh_half_w, heading)
+    
+    # Get trailer geometry
+    trl_cx, trl_cy = get_trailer_center_np(x_rear, y_rear, heading, psi, params)
+    trl_half_l = params['L2'] / 2
+    trl_half_w = params['W2'] / 2
+    trailer_heading = heading + psi
+    trl_corners = get_rect_corners(trl_cx, trl_cy, trl_half_l, trl_half_w, trailer_heading)
+    
+    # Check against each obstacle
+    for obs in obstacle_list:
+        obs_center = obs['center']
+        obs_half_w = obs['width'] / 2
+        obs_half_h = obs['height'] / 2
+        
+        # Check vehicle collision
+        if check_obb_aabb_collision(veh_corners, obs_center, obs_half_w, obs_half_h):
+            return True
+        
+        # Check trailer collision
+        if check_obb_aabb_collision(trl_corners, obs_center, obs_half_w, obs_half_h):
+            return True
+    
+    return False
+
+def check_trajectory_collision(states, params, obstacle_list):
+    """
+    Check if any state in a trajectory collides with obstacles.
+    
+    Args:
+        states: State trajectory array of shape (num_state, horizon+1)
+        params: Vehicle parameters dict
+        obstacle_list: List of obstacles
+        
+    Returns:
+        True if any collision detected (should use obstacle-aware MPC)
+    """
+    if len(obstacle_list) == 0:
+        return False
+    
+    num_steps = states.shape[1]
+    
+    for k in range(num_steps):
+        state_k = states[:, k]
+        if check_state_collision(state_k, params, obstacle_list):
+            return True
+    
+    return False
+
 if __name__ == "__main__":
     dt_to = 0.1
     dt = 0.05
@@ -229,14 +398,29 @@ if __name__ == "__main__":
                    "ub": ca.DM([ ca.inf,  ca.inf,  ca.pi,  ca.pi/3.,  ca.pi/4.,  10.])}      
     input_bound = {"lb": ca.DM([-5, -ca.pi/2]),
                    "ub": ca.DM([ 5,  ca.pi/2])}
-    if USE_OBS_MPC:
-        controller = MPCTrackingControlObs(model, params,
+    # Create both controllers - switch based on collision detection in horizon
+    if USE_SWITCH_MPC:
+        controller_obs = MPCTrackingControlObs(model, params,
+                                    Q, R, 
+                                    state_bound, input_bound, obstacle_list=obstacle_list)
+        controller_no_obs = MPCTrackingControl(model, params,
+                                    Q, R, 
+                                    state_bound, input_bound)
+    elif USE_OBS_MPC:
+        controller_obs = MPCTrackingControlObs(model, params,
+                                    Q, R, 
+                                    state_bound, input_bound, obstacle_list=obstacle_list)
+        controller_no_obs = MPCTrackingControlObs(model, params,
                                     Q, R, 
                                     state_bound, input_bound, obstacle_list=obstacle_list)
     else:
-        controller = MPCTrackingControl(model, params,
+        controller_obs = MPCTrackingControl(model, params,
                                     Q, R, 
                                     state_bound, input_bound)
+        controller_no_obs = MPCTrackingControl(model, params,
+                                    Q, R, 
+                                    state_bound, input_bound)
+
     initial_state, goal_state = get_initial_goal_states()
     initial_state.append(0)
     initial_state.append(0)
@@ -278,6 +462,11 @@ if __name__ == "__main__":
     else:
         print("Disturbances DISABLED - nominal simulation")
     
+    print("Controller switching: Using obstacle-aware MPC when collision detected in horizon")
+    
+    # Store previous MPC prediction for collision checking (None on first iteration)
+    prev_mpc_prediction = None
+    
     while time <= T_sim:
         k = math.floor(time/dt)
         if k + horizon <= N:
@@ -295,7 +484,21 @@ if __name__ == "__main__":
             ref_state_traj_[:,:] = ca.repmat(ref_state_traj[:,-1], 1, horizon+1)
             ref_input_traj_[:,:] = ca.repmat(np.zeros((model.num_input,1)), 1, horizon)
         
-        states, inputs = controller.solve(state, ref_state_traj_, ref_input_traj_)     
+        # Check if MPC prediction collides with obstacles in the horizon
+        # Use previous MPC prediction if available, otherwise fall back to reference trajectory
+        traj_to_check = prev_mpc_prediction if prev_mpc_prediction is not None else ref_state_traj_
+        needs_obstacle_avoidance = check_trajectory_collision(traj_to_check, params, obstacle_list)
+        
+        if needs_obstacle_avoidance:
+            controller = controller_obs
+            print("Using obstacle-aware MPC")
+        else:
+            controller = controller_no_obs
+        
+        states, inputs = controller.solve(state, ref_state_traj_, ref_input_traj_)
+        
+        # Store MPC prediction for next iteration's collision check
+        prev_mpc_prediction = np.array(states)     
         u_con = inputs[:,0]
         
         # Apply disturbances if enabled

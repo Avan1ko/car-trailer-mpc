@@ -25,6 +25,8 @@ class MPCTrackingControlObs(TrajectoryPlanning):
             self._lams_sm = None
         
         self._last_solution = None  # Add this to store previous solution
+        
+        # Build solver with or without obstacle constraints based on obstacle_list
         self._build_solver()
     
     def _cost_function(self):
@@ -173,99 +175,8 @@ class MPCTrackingControlObs(TrajectoryPlanning):
         
         return lb_vars, ub_vars
 
-    def check_points_in_obstacles(self, states):
-        """
-        Returns a boolean array where each element is indexed by discrete time step 
-        until the horizon, True if a given point is within an obstacle and False otherwise.
-        
-        The given point is:
-        - The car's center if velocity is forward (>= 0) at that timestep
-        - The trailer's center if velocity is backwards (< 0) at that timestep
-        
-        Args:
-            states: numpy array or casadi DM of shape (num_state, horizon+1)
-                   State vector: [x, y, theta, psi, phi, v]
-        
-        Returns:
-            numpy array of booleans of length (horizon+1)
-        """
-        import numpy as np
-        
-        # Convert to numpy if casadi DM
-        if hasattr(states, 'full'):
-            states = states.full()
-        states = np.array(states)
-        
-        # Initialize boolean array
-        in_obstacle = np.zeros(self._horizon + 1, dtype=bool)
-        
-        # Iterate over each time step
-        for k in range(self._horizon + 1):
-            # Extract state components as floats
-            x_rear = float(states[0, k])
-            y_rear = float(states[1, k])
-            heading = float(states[2, k])
-            hitch_angle = float(states[3, k])
-            velocity = float(states[5, k])
-            
-            # Determine which point to check based on velocity direction
-            if velocity >= 0:
-                # Forward motion: check car center
-                # Use numpy calculations for numeric values
-                x_center = x_rear + np.cos(heading) * self._dynamics._params['L1'] / 2.0
-                y_center = y_rear + np.sin(heading) * self._dynamics._params['L1'] / 2.0
-            else:
-                # Backward motion: check trailer center
-                # Use numpy calculations for numeric values
-                M = self._dynamics._params['M']
-                L2 = self._dynamics._params['L2']
-                x_hitch = x_rear - np.cos(heading) * M
-                y_hitch = y_rear - np.sin(heading) * M
-                x_center = x_hitch - np.cos(heading + hitch_angle) * L2 / 2.0
-                y_center = y_hitch - np.sin(heading + hitch_angle) * L2 / 2.0
-            
-            # Check if point is inside any obstacle
-            for obstacle in self.obstacle_list:
-                center_x, center_y = obstacle["center"]
-                width = obstacle["width"]
-                height = obstacle["height"]
-                
-                # Check if point is within obstacle bounds
-                x_min = center_x - width / 2.0
-                x_max = center_x + width / 2.0
-                y_min = center_y - height / 2.0
-                y_max = center_y + height / 2.0
-                
-                if (x_min <= x_center <= x_max) and (y_min <= y_center <= y_max):
-                    in_obstacle[k] = True
-                    break  # Point is in at least one obstacle, no need to check others
-        
-        return in_obstacle
 
     def _build_solver(self):
-        g_dyn, lb_dyn, ub_dyn = self._dynamics_constraints()
-        g = g_dyn
-        self._lb_g = lb_dyn
-        self._ub_g = ub_dyn
-        self._lb_vars, self._ub_vars = self._state_input_constraints()        
-        cost = self._cost_function()
-        solver_opts = {
-            'ipopt': {'max_iter': 5000, 'print_level': 0},
-            'print_time': False
-        }     
-        nlp_prob = {
-            'f': cost,
-            'x': self._vars,
-            'p': ca.vertcat(self._ref_states_sm.reshape((-1, 1)), 
-                            self._ref_inputs_sm.reshape((-1, 1)),
-                            self._init_state_sm),
-            'g': g
-        }
-        self._solver = ca.nlpsol('solver','ipopt', nlp_prob, solver_opts)
-        self.g_dyn_fun = ca.Function("g_dyn", [self._vars, self._init_state_sm], [g_dyn])
-        self.cost_fun = ca.Function("cost", [self._vars, self._ref_states_sm, self._ref_inputs_sm], [cost])
-        
-    def _build_solver_with_obstacle_constraints(self):
         g_dyn, lb_dyn, ub_dyn = self._dynamics_constraints()
         g = g_dyn
         self._lb_g = lb_dyn
@@ -302,7 +213,7 @@ class MPCTrackingControlObs(TrajectoryPlanning):
         self.g_dyn_fun = ca.Function("g_dyn", [self._vars, self._init_state_sm], [g_dyn])
         self.cost_fun = ca.Function("cost", [self._vars, self._ref_states_sm, self._ref_inputs_sm], [cost])
 
-    def _get_initial_guess_with_obstacle_constraints(self, reference_states, reference_inputs):
+    def _get_initial_guess(self, reference_states, reference_inputs):
         vars_guess = []
         num_obstacles = len(self.obstacle_list) if self.obstacle_list else 0
 
@@ -327,17 +238,46 @@ class MPCTrackingControlObs(TrajectoryPlanning):
         
         return vars_guess
         
-    def _get_initial_guess(self, reference_states, reference_inputs):
-        vars_guess = []
-
-        for k in range(self._horizon):
-            state_guess = reference_states[:,k]
-            input_guess = reference_inputs[:,k]
-            vars_guess = ca.vertcat(vars_guess, state_guess, input_guess)
-
-        vars_guess = ca.vertcat(vars_guess, reference_states[:,-1])
+    def _split_decision_variables(self, vars):
+        """Override parent method to handle mus and lams when obstacles are present."""
+        states = []
+        inputs = []
         
-        return vars_guess
+        num_obstacles = len(self.obstacle_list) if self.obstacle_list else 0
+        num_state_input = self._num_state + self._num_input
+        
+        if num_obstacles > 0:
+            # With obstacles: each step has states, inputs, mus (8*num_obs), lams (8*num_obs)
+            num_vars_per_step = num_state_input + 8*num_obstacles + 8*num_obstacles
+            
+            for k in range(self._horizon):
+                start_idx = k * num_vars_per_step
+                state_k = vars[start_idx:start_idx + self._num_state]
+                input_k = vars[start_idx + self._num_state:start_idx + num_state_input]
+                states = ca.vertcat(states, state_k)
+                inputs = ca.vertcat(inputs, input_k)
+            
+            # Final state (no inputs, just states, mus, lams)
+            final_start = self._horizon * num_vars_per_step
+            final_state = vars[final_start:final_start + self._num_state]
+            states = ca.vertcat(states, final_state)
+        else:
+            # Without obstacles: use parent class logic
+            num_vars_per_step = num_state_input
+            
+            for k in range(self._horizon):
+                vars_k = vars[k*num_vars_per_step:(k+1)*num_vars_per_step]
+                states = ca.vertcat(states, vars_k[:self._num_state])
+                inputs = ca.vertcat(inputs, vars_k[self._num_state:])
+            
+            # Final state
+            vars_final = vars[-(num_vars_per_step - self._num_input):]
+            states = ca.vertcat(states, vars_final[:self._num_state])
+        
+        states = states.reshape((self._num_state, self._horizon+1))
+        inputs = inputs.reshape((self._num_input, self._horizon))
+        
+        return states.full(), inputs.full()
 
     def solve(self, 
               initial_state, 
@@ -346,45 +286,8 @@ class MPCTrackingControlObs(TrajectoryPlanning):
         reference_states_flat = reference_states.T.reshape((-1, 1))
         reference_inputs_flat = reference_inputs.T.reshape((-1, 1))
 
-        #add collision constraints
-
-        if False: #self.obstacle_list and len(self.obstacle_list) > 0:
-            # Check if previous MPC solution passed near obstacles
-            if self._last_solution is not None:
-                # Extract states from previous solution vector
-                # The solution vector structure: [states, inputs, mus, lams] for each k
-                num_obstacles = len(self.obstacle_list)
-                num_state_input = self._num_state + self._num_input
-                num_vars_per_step = num_state_input + 8*num_obstacles + 8*num_obstacles
-                
-                states_prev = []
-                for k in range(self._horizon):
-                    start_idx = k * num_vars_per_step
-                    state_k = self._last_solution[start_idx:start_idx + self._num_state]
-                    states_prev.append(state_k)
-                
-                # Final state (no inputs, just states, mus, lams)
-                final_start = self._horizon * num_vars_per_step
-                final_state = self._last_solution[final_start:final_start + self._num_state]
-                states_prev.append(final_state)
-                
-                # Convert to matrix format
-                states_prev = ca.vertcat(*states_prev).reshape((self._num_state, self._horizon+1))
-                
-                # Convert to numpy for check_points_in_obstacles
-                if hasattr(states_prev, 'full'):
-                    states_prev = states_prev.full()
-                else:
-                    states_prev = np.array(states_prev)
-                
-                in_obstacle_ref = self.check_points_in_obstacles(states_prev)
-                if np.any(in_obstacle_ref[:self._horizon]):
-                    print("Previous MPC solution passed near obstacles, building solver with obstacle constraints")
-                    self._build_solver_with_obstacle_constraints()  # Implement this if needed
-
-                    vars_guess = self._get_initial_guess_with_obstacle_constraints(reference_states, reference_inputs)
-        else:
-            vars_guess = self._get_initial_guess(reference_states, reference_inputs)
+        # Use appropriate initial guess based on whether obstacles exist
+        vars_guess = self._get_initial_guess(reference_states, reference_inputs)
         start = time.time()
         sol = self._solver(
                 x0  = vars_guess, 
