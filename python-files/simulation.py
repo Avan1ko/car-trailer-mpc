@@ -17,7 +17,7 @@ from LQR_cost import lqr_distance
 # ============================================================================
 # DISTURBANCE CONFIGURATION
 # ============================================================================
-ENABLE_DISTURBANCES = True  # Set to False to disable all disturbances
+ENABLE_DISTURBANCES = False  # Set to False to disable all disturbances
 USE_OBS_MPC = True  # Set to True to use MPC with obstacle constraints
 
 DISTURBANCE_PARAMS = {
@@ -204,7 +204,7 @@ def do_interpolation(state_traj, input_traj, dt_1, dt_2):
 if __name__ == "__main__":
     dt_to = 0.1
     dt = 0.05
-    horizon = 60
+    horizon = 50
     params = {"M": 0.15, 
               "L1": 7.05, "L2": 12.45, 
               "W1": 3.05, "W2": 2.95,

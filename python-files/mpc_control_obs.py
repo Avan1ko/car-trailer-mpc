@@ -173,14 +173,6 @@ class MPCTrackingControlObs(TrajectoryPlanning):
         
         return lb_vars, ub_vars
 
-    def _need_obstacle_constraints(self):
-        #check if any of the obstacles are within half of the prediction horizon
-        for k in range(self._horizon//2):
-            if self.check_points_in_obstacles(self._states_sm[:,k]):
-                return True
-        return False
-        
-
     def check_points_in_obstacles(self, states):
         """
         Returns a boolean array where each element is indexed by discrete time step 
@@ -279,7 +271,7 @@ class MPCTrackingControlObs(TrajectoryPlanning):
         self._lb_g = lb_dyn
         self._ub_g = ub_dyn
 
-        if self.obstacle_list and len(self.obstacle_list) > 0 and self._need_obstacle_constraints():
+        if self.obstacle_list and len(self.obstacle_list) > 0:
             g_col, lb_col, ub_col = self._collision_constraints()
             g = ca.vertcat(g, g_col)
             self._lb_g = ca.vertcat(self._lb_g, lb_col)
@@ -309,8 +301,8 @@ class MPCTrackingControlObs(TrajectoryPlanning):
 
         self.g_dyn_fun = ca.Function("g_dyn", [self._vars, self._init_state_sm], [g_dyn])
         self.cost_fun = ca.Function("cost", [self._vars, self._ref_states_sm, self._ref_inputs_sm], [cost])
-        
-    def _get_initial_guess(self, reference_states, reference_inputs):
+
+    def _get_initial_guess_with_obstacle_constraints(self, reference_states, reference_inputs):
         vars_guess = []
         num_obstacles = len(self.obstacle_list) if self.obstacle_list else 0
 
@@ -334,6 +326,18 @@ class MPCTrackingControlObs(TrajectoryPlanning):
                                             ca.DM([100, 105, 110, 115, 100, 105, 110, 115])))
         
         return vars_guess
+        
+    def _get_initial_guess(self, reference_states, reference_inputs):
+        vars_guess = []
+
+        for k in range(self._horizon):
+            state_guess = reference_states[:,k]
+            input_guess = reference_inputs[:,k]
+            vars_guess = ca.vertcat(vars_guess, state_guess, input_guess)
+
+        vars_guess = ca.vertcat(vars_guess, reference_states[:,-1])
+        
+        return vars_guess
 
     def solve(self, 
               initial_state, 
@@ -344,17 +348,43 @@ class MPCTrackingControlObs(TrajectoryPlanning):
 
         #add collision constraints
 
-        if self.obstacle_list and len(self.obstacle_list) > 0:
-            # Check if reference trajectory passes near obstacles
-            #I want to check if the previous MPC solve
-            previous_solution = self._last_solution
-            if previous_solution is not None:
-                in_obstacle_ref = self.check_points_in_obstacles(previous_solution[:, :self._horizon//2])
-                if np.any(in_obstacle_ref[:self._horizon//2]):
+        if False: #self.obstacle_list and len(self.obstacle_list) > 0:
+            # Check if previous MPC solution passed near obstacles
+            if self._last_solution is not None:
+                # Extract states from previous solution vector
+                # The solution vector structure: [states, inputs, mus, lams] for each k
+                num_obstacles = len(self.obstacle_list)
+                num_state_input = self._num_state + self._num_input
+                num_vars_per_step = num_state_input + 8*num_obstacles + 8*num_obstacles
+                
+                states_prev = []
+                for k in range(self._horizon):
+                    start_idx = k * num_vars_per_step
+                    state_k = self._last_solution[start_idx:start_idx + self._num_state]
+                    states_prev.append(state_k)
+                
+                # Final state (no inputs, just states, mus, lams)
+                final_start = self._horizon * num_vars_per_step
+                final_state = self._last_solution[final_start:final_start + self._num_state]
+                states_prev.append(final_state)
+                
+                # Convert to matrix format
+                states_prev = ca.vertcat(*states_prev).reshape((self._num_state, self._horizon+1))
+                
+                # Convert to numpy for check_points_in_obstacles
+                if hasattr(states_prev, 'full'):
+                    states_prev = states_prev.full()
+                else:
+                    states_prev = np.array(states_prev)
+                
+                in_obstacle_ref = self.check_points_in_obstacles(states_prev)
+                if np.any(in_obstacle_ref[:self._horizon]):
                     print("Previous MPC solution passed near obstacles, building solver with obstacle constraints")
-                    self._build_solver_with_obstacle_constraints()
+                    self._build_solver_with_obstacle_constraints()  # Implement this if needed
 
-        vars_guess = self._get_initial_guess(reference_states, reference_inputs)
+                    vars_guess = self._get_initial_guess_with_obstacle_constraints(reference_states, reference_inputs)
+        else:
+            vars_guess = self._get_initial_guess(reference_states, reference_inputs)
         start = time.time()
         sol = self._solver(
                 x0  = vars_guess, 
