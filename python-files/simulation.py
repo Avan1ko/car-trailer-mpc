@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 from matplotlib.patches import Rectangle
 from math import cos, sin, tan, pi
 from draw import draw_truck_trailer
@@ -18,11 +19,11 @@ from LQR_cost import lqr_distance
 # DISTURBANCE CONFIGURATION
 # ============================================================================
 ENABLE_DISTURBANCES = True  # Set to False to disable all disturbances
-USE_OBS_MPC = True  # Set to True to use MPC with obstacle constraints
+USE_OBS_MPC = False  # Set to True to use MPC with obstacle constraints
 
 DISTURBANCE_PARAMS = {
-    'friction_coeff': .7,        # .7 0.0-1.0, 1.0 = perfect friction, 0.7 = 70% friction (low friction)
-    'slippage_coeff': .8,        # .8 0.0-1.0, 1.0 = no slippage, 0.8 = 80% steering effectiveness (20% slippage)
+    'friction_coeff': .9,        # .7 0.0-1.0, 1.0 = perfect friction, 0.7 = 70% friction (low friction)
+    'slippage_coeff': .9,        # .8 0.0-1.0, 1.0 = no slippage, 0.8 = 80% steering effectiveness (20% slippage)
     'process_noise_std': 0.02,     # .02 Standard deviation for process noise (additive to states)
     'lateral_slip_gain': 0.00,     # Lateral drift coefficient (sideways movement)
     'slip_angle_max': 0.0,         # Maximum slip angle in radians for tire slippage model
@@ -252,7 +253,7 @@ if __name__ == "__main__":
     
     T_sim = 40.
     # T_sim = 10. / 30
-    time = 0.
+    t = 0.
     
     state = copy.deepcopy(initial_state)
     x =  [state[0]]
@@ -278,8 +279,10 @@ if __name__ == "__main__":
     else:
         print("Disturbances DISABLED - nominal simulation")
     
-    while time <= T_sim:
-        k = math.floor(time/dt)
+    solve_times = []
+    
+    while t <= T_sim:
+        k = math.floor(t/dt)
         if k + horizon <= N:
             ref_state_traj_[:,:] = ref_state_traj[:,k:k+horizon+1]
             ref_input_traj_[:,:] = ref_input_traj[:,k:k+horizon]
@@ -295,7 +298,10 @@ if __name__ == "__main__":
             ref_state_traj_[:,:] = ca.repmat(ref_state_traj[:,-1], 1, horizon+1)
             ref_input_traj_[:,:] = ca.repmat(np.zeros((model.num_input,1)), 1, horizon)
         
-        states, inputs = controller.solve(state, ref_state_traj_, ref_input_traj_)     
+        t_start = time.perf_counter()
+        states, inputs = controller.solve(state, ref_state_traj_, ref_input_traj_)
+        t_end = time.perf_counter()
+        solve_times.append(t_end - t_start)
         u_con = inputs[:,0]
         
         # Apply disturbances if enabled
@@ -331,12 +337,18 @@ if __name__ == "__main__":
         plt.grid(True)
         plt.pause(0.0001)
     
-        time += dt
+        t += dt
     
     #calculate the "distance" of the final state to the desired goal state using LQR
     score = lqr_distance(state[-6:], ref_state_traj_[:, -1], params, model, Q, R, ref_input_traj_[:, -1])
     print("LQR distance score: ")
     print(score)
+    
+    # Print solve time statistics
+    print("SOLVE TIME STATISTICS")
+    print(f"  Min solve time:  {min(solve_times)*1000:.3f} ms")
+    print(f"  Max solve time:  {max(solve_times)*1000:.3f} ms")
+    print(f"  Avg solve time:  {np.mean(solve_times)*1000:.3f} ms")
     
     plt.show()
     
