@@ -1,6 +1,7 @@
 from trajectory_planning import TrajectoryPlanning 
 import casadi as ca
 import time
+import numpy as np
 from get_obstacles import get_obstacles
 
 
@@ -23,6 +24,9 @@ class MPCTrackingControlObs(TrajectoryPlanning):
             self._mus_sm = None
             self._lams_sm = None
         
+        self._last_solution = None  # Add this to store previous solution
+        
+        # Build solver with or without obstacle constraints based on obstacle_list
         self._build_solver()
     
     def _cost_function(self):
@@ -170,7 +174,8 @@ class MPCTrackingControlObs(TrajectoryPlanning):
                              ca.inf*ca.DM.ones(8*num_obstacles))
         
         return lb_vars, ub_vars
-        
+
+
     def _build_solver(self):
         g_dyn, lb_dyn, ub_dyn = self._dynamics_constraints()
         g = g_dyn
@@ -207,7 +212,7 @@ class MPCTrackingControlObs(TrajectoryPlanning):
 
         self.g_dyn_fun = ca.Function("g_dyn", [self._vars, self._init_state_sm], [g_dyn])
         self.cost_fun = ca.Function("cost", [self._vars, self._ref_states_sm, self._ref_inputs_sm], [cost])
-        
+
     def _get_initial_guess(self, reference_states, reference_inputs):
         vars_guess = []
         num_obstacles = len(self.obstacle_list) if self.obstacle_list else 0
@@ -232,6 +237,47 @@ class MPCTrackingControlObs(TrajectoryPlanning):
                                             ca.DM([100, 105, 110, 115, 100, 105, 110, 115])))
         
         return vars_guess
+        
+    def _split_decision_variables(self, vars):
+        """Override parent method to handle mus and lams when obstacles are present."""
+        states = []
+        inputs = []
+        
+        num_obstacles = len(self.obstacle_list) if self.obstacle_list else 0
+        num_state_input = self._num_state + self._num_input
+        
+        if num_obstacles > 0:
+            # With obstacles: each step has states, inputs, mus (8*num_obs), lams (8*num_obs)
+            num_vars_per_step = num_state_input + 8*num_obstacles + 8*num_obstacles
+            
+            for k in range(self._horizon):
+                start_idx = k * num_vars_per_step
+                state_k = vars[start_idx:start_idx + self._num_state]
+                input_k = vars[start_idx + self._num_state:start_idx + num_state_input]
+                states = ca.vertcat(states, state_k)
+                inputs = ca.vertcat(inputs, input_k)
+            
+            # Final state (no inputs, just states, mus, lams)
+            final_start = self._horizon * num_vars_per_step
+            final_state = vars[final_start:final_start + self._num_state]
+            states = ca.vertcat(states, final_state)
+        else:
+            # Without obstacles: use parent class logic
+            num_vars_per_step = num_state_input
+            
+            for k in range(self._horizon):
+                vars_k = vars[k*num_vars_per_step:(k+1)*num_vars_per_step]
+                states = ca.vertcat(states, vars_k[:self._num_state])
+                inputs = ca.vertcat(inputs, vars_k[self._num_state:])
+            
+            # Final state
+            vars_final = vars[-(num_vars_per_step - self._num_input):]
+            states = ca.vertcat(states, vars_final[:self._num_state])
+        
+        states = states.reshape((self._num_state, self._horizon+1))
+        inputs = inputs.reshape((self._num_input, self._horizon))
+        
+        return states.full(), inputs.full()
 
     def solve(self, 
               initial_state, 
@@ -240,10 +286,7 @@ class MPCTrackingControlObs(TrajectoryPlanning):
         reference_states_flat = reference_states.T.reshape((-1, 1))
         reference_inputs_flat = reference_inputs.T.reshape((-1, 1))
 
-        #add collision constraints
-
-        
-
+        # Use appropriate initial guess based on whether obstacles exist
         vars_guess = self._get_initial_guess(reference_states, reference_inputs)
         start = time.time()
         sol = self._solver(
@@ -259,7 +302,7 @@ class MPCTrackingControlObs(TrajectoryPlanning):
         end = time.time()
         # Solver runtime available if needed via `end-start`, but suppressed by default to keep logs clean.
         vars_opt = sol['x']
-        
+        self._last_solution = vars_opt
         # print(f"g_dyn: {self.g_dyn_fun(vars_guess, initial_state)}")
         
         # print(vars_guess[:20])
