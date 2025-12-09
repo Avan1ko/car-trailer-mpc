@@ -18,7 +18,7 @@ from LQR_cost import lqr_distance
 # ============================================================================
 # DISTURBANCE CONFIGURATION
 # ============================================================================
-ENABLE_DISTURBANCES = True  # Set to False to disable all disturbances
+ENABLE_DISTURBANCES = False  # Set to False to disable all disturbances
 USE_OBS_MPC = False  # Set to True to use MPC with obstacle constraints
 
 DISTURBANCE_PARAMS = {
@@ -349,6 +349,20 @@ if __name__ == "__main__":
     print(f"  Min solve time:  {min(solve_times)*1000:.3f} ms")
     print(f"  Max solve time:  {max(solve_times)*1000:.3f} ms")
     print(f"  Avg solve time:  {np.mean(solve_times)*1000:.3f} ms")
+    
+    # Final state metrics
+    goal_state_final = ref_state_traj[:, -1]
+    distance_error = np.sqrt((state[0] - goal_state_final[0])**2 + (state[1] - goal_state_final[1])**2)
+    heading_error = state[2] - goal_state_final[2]
+    hitch_angle_error = state[3] - goal_state_final[3]
+    # Normalize angles to [-pi, pi]
+    heading_error = (heading_error + np.pi) % (2 * np.pi) - np.pi
+    hitch_angle_error = (hitch_angle_error + np.pi) % (2 * np.pi) - np.pi
+    
+    print("FINAL STATE METRICS")
+    print(f"  Distance error:        {distance_error:.4f} m")
+    print(f"  Tractor heading error: {np.degrees(heading_error):.4f} deg ({heading_error:.4f} rad)")
+    print(f"  Hitch angle error:     {np.degrees(hitch_angle_error):.4f} deg ({hitch_angle_error:.4f} rad)")
     
     plt.show()
     
