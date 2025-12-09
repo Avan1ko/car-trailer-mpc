@@ -148,6 +148,22 @@ def apply_lateral_slip(q, q_dot, params, disturbance_params=None):
     
     return lateral_drift
 
+def generate_measurement_noise(disturbance_params):
+    """
+    Generate measurement noise for the state passed to MPC.
+    This simulates sensor uncertainty where the controller doesn't know the true state.
+    
+    Args:
+        disturbance_params: dict with disturbance parameters
+        
+    Returns:
+        measurement_noise: additive noise vector for state measurement
+    """
+    if disturbance_params is None or 'process_noise_std' not in disturbance_params:
+        return np.zeros(6)
+    std = disturbance_params['process_noise_std']
+    return np.random.normal(0, std, 6)
+
 def update(q, u, params, disturbance_params=None):
     """
     Update state with optional disturbances
@@ -161,8 +177,8 @@ def update(q, u, params, disturbance_params=None):
     Returns:
         q_: updated state
     """
-    # Apply disturbances to control inputs and generate process noise
-    u_disturbed, state_noise = apply_disturbances(q, u, params, disturbance_params)
+    # Apply disturbances to control inputs (friction, slippage on actuators)
+    u_disturbed, _ = apply_disturbances(q, u, params, disturbance_params)
     
     # Compute nominal dynamics
     q_dot = f_dyn(q, u_disturbed, params)
@@ -171,11 +187,8 @@ def update(q, u, params, disturbance_params=None):
     if disturbance_params is not None:
         q_dot = apply_slippage_to_dynamics(q_dot, q, params, disturbance_params)
     
-    # Update state with dynamics
+    # Update state with dynamics (no process noise - it's applied as measurement noise to MPC)
     q_ = q + q_dot * params["dt"]
-    
-    # Add process noise
-    q_ += state_noise * params["dt"]
     
     # Apply lateral slip (sideways drift)
     if disturbance_params is not None:
@@ -495,8 +508,16 @@ if __name__ == "__main__":
             print("Using obstacle-aware MPC")
         else:
             controller = controller_no_obs
+        
+        # Create noisy state measurement for MPC (simulates sensor uncertainty)
+        if ENABLE_DISTURBANCES:
+            measurement_noise = generate_measurement_noise(DISTURBANCE_PARAMS)
+            state_measured = state + measurement_noise
+        else:
+            state_measured = state
+        
         t_start = time.perf_counter()
-        states, inputs = controller.solve(state, ref_state_traj_, ref_input_traj_)
+        states, inputs = controller.solve(state_measured, ref_state_traj_, ref_input_traj_)
         t_end = time.perf_counter()
         solve_times.append(t_end - t_start)
         # Store MPC prediction for next iteration's collision check
