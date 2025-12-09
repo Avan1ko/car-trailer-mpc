@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 from matplotlib.patches import Rectangle
 from math import cos, sin, tan, pi
 from draw import draw_truck_trailer
@@ -436,7 +437,7 @@ if __name__ == "__main__":
     
     T_sim = 40.
     # T_sim = 10. / 30
-    time = 0.
+    t = 0.
     
     state = copy.deepcopy(initial_state)
     x =  [state[0]]
@@ -466,9 +467,9 @@ if __name__ == "__main__":
     
     # Store previous MPC prediction for collision checking (None on first iteration)
     prev_mpc_prediction = None
-    
-    while time <= T_sim:
-        k = math.floor(time/dt)
+    solve_times = []
+    while t <= T_sim:
+        k = math.floor(t/dt)
         if k + horizon <= N:
             ref_state_traj_[:,:] = ref_state_traj[:,k:k+horizon+1]
             ref_input_traj_[:,:] = ref_input_traj[:,k:k+horizon]
@@ -494,9 +495,10 @@ if __name__ == "__main__":
             print("Using obstacle-aware MPC")
         else:
             controller = controller_no_obs
-        
+        t_start = time.perf_counter()
         states, inputs = controller.solve(state, ref_state_traj_, ref_input_traj_)
-        
+        t_end = time.perf_counter()
+        solve_times.append(t_end - t_start)
         # Store MPC prediction for next iteration's collision check
         prev_mpc_prediction = np.array(states)     
         u_con = inputs[:,0]
@@ -534,12 +536,32 @@ if __name__ == "__main__":
         plt.grid(True)
         plt.pause(0.0001)
     
-        time += dt
+        t += dt
     
     #calculate the "distance" of the final state to the desired goal state using LQR
     score = lqr_distance(state[-6:], ref_state_traj_[:, -1], params, model, Q, R, ref_input_traj_[:, -1])
     print("LQR distance score: ")
     print(score)
+    
+    # Print solve time statistics
+    print("SOLVE TIME STATISTICS")
+    print(f"  Min solve time:  {min(solve_times)*1000:.3f} ms")
+    print(f"  Max solve time:  {max(solve_times)*1000:.3f} ms")
+    print(f"  Avg solve time:  {np.mean(solve_times)*1000:.3f} ms")
+    
+    # Final state metrics
+    goal_state_final = ref_state_traj[:, -1]
+    distance_error = np.sqrt((state[0] - goal_state_final[0])**2 + (state[1] - goal_state_final[1])**2)
+    heading_error = state[2] - goal_state_final[2]
+    hitch_angle_error = state[3] - goal_state_final[3]
+    # Normalize angles to [-pi, pi]
+    heading_error = (heading_error + np.pi) % (2 * np.pi) - np.pi
+    hitch_angle_error = (hitch_angle_error + np.pi) % (2 * np.pi) - np.pi
+    
+    print("FINAL STATE METRICS")
+    print(f"  Distance error:        {distance_error:.4f} m")
+    print(f"  Tractor heading error: {np.degrees(heading_error):.4f} deg ({heading_error:.4f} rad)")
+    print(f"  Hitch angle error:     {np.degrees(hitch_angle_error):.4f} deg ({hitch_angle_error:.4f} rad)")
     
     plt.show()
     
